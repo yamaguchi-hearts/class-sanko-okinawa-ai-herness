@@ -109,6 +109,17 @@ export class CatalogService {
       }
     }).immediate()
   }
+  activateProduct(token: string, senderId: number, productId: string): void {
+    const actor = this.requireActor(token, senderId, 'ADMIN'); const now = this.now()
+    this.db.transaction(() => {
+      const product = this.repository.getProduct(productId)
+      if (!product) throw new AppError('NOT_FOUND')
+      if (!product.isActive) {
+        this.db.prepare('UPDATE products SET is_active=1,updated_at=? WHERE id=?').run(now, productId)
+        audit(this.db, 'PRODUCT_ACTIVATED', actor, 'product', productId, { sku: product.sku, name: product.name })
+      }
+    }).immediate()
+  }
   createCategory(token: string, senderId: number, nameInput: string): CategorySummary {
     const actor = this.requireActor(token, senderId, 'ADMIN'); const id = randomUUID(); const name = nameInput.trim(); const now = this.now()
     try {

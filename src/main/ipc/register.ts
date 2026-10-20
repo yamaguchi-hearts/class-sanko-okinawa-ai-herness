@@ -120,6 +120,10 @@ export function registerIpc(auth: AuthService, catalog: CatalogService, inventor
     if (typeof productId !== 'string' || !/^[0-9a-f-]{36}$/i.test(productId)) throw new AppError('VALIDATION_ERROR')
     catalog.deactivateProduct(String(token), senderId, productId); return null
   })
+  handle('products:activate', (_event, senderId, token, productId) => {
+    if (typeof productId !== 'string' || !/^[0-9a-f-]{36}$/i.test(productId)) throw new AppError('VALIDATION_ERROR')
+    catalog.activateProduct(String(token), senderId, productId); return null
+  })
   handle('productImages:select', async (_event, senderId, token) => {
     const parent = getWindow()
     const options = { title: '商品画像を選択', properties: ['openFile'] as Array<'openFile'>, filters: [{ name: '画像', extensions: ['png', 'jpg', 'jpeg'] }] }

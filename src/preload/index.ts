@@ -37,7 +37,8 @@ const api = Object.freeze({
     list: (query: ProductListQuery) => protectedCall<Page<ProductSummary>>('products:list', query),
     create: (input: CreateProductInput) => protectedCall<ProductSummary>('products:create', input),
     update: (input: UpdateProductInput) => protectedCall<ProductSummary>('products:update', input),
-    deactivate: (productId: string) => protectedCall<null>('products:deactivate', productId)
+    deactivate: (productId: string) => protectedCall<null>('products:deactivate', productId),
+    activate: (productId: string) => protectedCall<null>('products:activate', productId)
   }),
   productImages: Object.freeze({
     select: () => protectedCall<ProductImageSelection | { cancelled: true }>('productImages:select'),

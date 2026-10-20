@@ -26,6 +26,7 @@ declare global {
         create(input: CreateProductInput): Promise<IpcResult<ProductSummary>>
         update(input: UpdateProductInput): Promise<IpcResult<ProductSummary>>
         deactivate(productId: string): Promise<IpcResult<null>>
+        activate(productId: string): Promise<IpcResult<null>>
       }
       productImages: {
         select(): Promise<IpcResult<ProductImageSelection | { cancelled: true }>>

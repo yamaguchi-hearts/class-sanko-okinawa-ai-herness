@@ -66,6 +66,19 @@ describe('catalog and category foundation', () => {
     expect(catalog.listProducts(adminToken, 1, query({ status: 'INACTIVE' })).items.map((p) => p.id)).toContain(one.id)
   })
 
+  it('allows ADMIN to reactivate an inactive product without changing its stock or history', async () => {
+    await setup()
+    const item = catalog.createProduct(adminToken, 1, product({ initialStock: 8 }))
+    catalog.deactivateProduct(adminToken, 1, item.id)
+    catalog.activateProduct(adminToken, 1, item.id)
+    const active = catalog.listProducts(adminToken, 1, query()).items.find(({ id }) => id === item.id)
+    expect(active).toMatchObject({ id: item.id, isActive: true, currentStock: 8 })
+    expect((db!.prepare('SELECT COUNT(*) AS n FROM stock_movements WHERE product_id=?').get(item.id) as { n: number }).n).toBe(1)
+    expect((db!.prepare("SELECT action FROM audit_logs WHERE entity_id=? AND action IN ('PRODUCT_DEACTIVATED','PRODUCT_ACTIVATED')").all(item.id) as Array<{ action: string }>).map(({ action }) => action).sort()).toEqual(['PRODUCT_ACTIVATED', 'PRODUCT_DEACTIVATED'])
+    catalog.activateProduct(adminToken, 1, item.id)
+    expect((db!.prepare("SELECT COUNT(*) AS n FROM audit_logs WHERE entity_id=? AND action='PRODUCT_ACTIVATED'").get(item.id) as { n: number }).n).toBe(1)
+  })
+
   it('keeps an inactive category on its existing product but disallows selecting it for new products', async () => {
     await setup()
     const category = catalog.createCategory(adminToken, 1, '備品')
