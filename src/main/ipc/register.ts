@@ -184,7 +184,7 @@ export function registerIpc(auth: AuthService, catalog: CatalogService, inventor
     const window = getWindow()
     const selected = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options)
     if (selected.canceled || !selected.filePaths[0]) { maintenance.recordDialogCancelled(String(token), senderId, 'RESTORE_CANCELLED'); return { cancelled: true } }
-    return { cancelled: false, candidate: maintenance.inspectRestoreCandidate(String(token), senderId, selected.filePaths[0]) }
+    return { cancelled: false, candidate: await maintenance.inspectRestoreCandidate(String(token), senderId, selected.filePaths[0]) }
   })
   handle('data:applyRestore', async (_event, senderId, token, raw) => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw as object).sort().join(',') !== 'candidateId,confirmation,password' || Object.values(raw as Record<string, unknown>).some((v) => typeof v !== 'string')) throw new AppError('VALIDATION_ERROR')
