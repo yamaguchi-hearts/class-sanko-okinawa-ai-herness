@@ -12,9 +12,11 @@ docs/
   templates/       設計書とプロンプトのひな型
 ```
 
-Plan、設計書、プロンプトは同じ `<ID>-<slug>.md` で対応づけます。まず管理者のPlanを記録し、テンプレートから設計書とプロンプトを作成します。重要な不明点を解消してから実装へ引き継ぎます。各作業の完了時には対象の変更を自動コミットします。
+Plan、設計書、プロンプトは同じ案件の `<ID>-<slug>` で対応づけます。単一文書は `.md`、機能・要求別に分割する案件は同名ディレクトリの `README.md` を索引にします。まず管理者のPlanを記録し、設計書とプロンプトを作成します。重要な不明点を解消してから実装へ引き継ぎます。各作業の完了時には対象の変更を自動コミットします。
 
-初期構成については [Plan](docs/plans/0001-repository-structure.md)、[設計書](docs/specs/0001-repository-structure.md)、[引き継ぎプロンプト](docs/prompts/0001-repository-structure.md) を参照してください。アプリケーションの技術スタック、ソース配置、ビルド方法は今後のPlanに応じて決定します。
+現在のアプリPlanは [店舗向け商品在庫管理](docs/plans/0003-store-inventory.md) です。[機能・要求別の設計索引](docs/specs/0003-store-inventory/README.md) と [実装プロンプト索引](docs/prompts/0003-store-inventory/README.md) から参照してください。アプリ実装は未着手で、Phase 0から開始します。
+
+初期構成の記録は [Plan](docs/plans/0001-repository-structure.md)、[設計書](docs/specs/0001-repository-structure.md)、[引き継ぎプロンプト](docs/prompts/0001-repository-structure.md) を参照してください。アプリケーションの技術構成・実装手順は現在のPlanと設計索引を基準とし、具体的な依存バージョンとビルド方法をPhase 0で検証・確定します。
 
 再利用するSkillは [設計者用](.agents/skills/software-designer/SKILL.md) と [実装者用](.agents/skills/software-implementer/SKILL.md) です。このリポジトリの `.agents/skills/` に配置してGitで管理します。ユーザー共通のSkillsフォルダーへのコピーは不要です。このリポジトリを開いた新しい会話で、例えば次のように依頼できます。
 
