@@ -5,6 +5,7 @@ import { CatalogRepository } from '../db/repositories/catalog'
 import { AppError, AuthService } from '../auth/service'
 import { audit, type AuditActor } from './audit'
 import type { InventoryService } from './inventory'
+import type { ProductImageService } from './product-images'
 
 function translateConstraint(error: unknown, entity: 'product' | 'category'): never {
   const message = error instanceof Error ? error.message : ''
@@ -14,7 +15,7 @@ function translateConstraint(error: unknown, entity: 'product' | 'category'): ne
 
 export class CatalogService {
   private readonly repository: CatalogRepository
-  constructor(private readonly db: StoreDatabase, private readonly auth: AuthService, private readonly inventory: InventoryService, private readonly clock: () => number = Date.now) {
+  constructor(private readonly db: StoreDatabase, private readonly auth: AuthService, private readonly inventory: InventoryService, private readonly images: ProductImageService, private readonly clock: () => number = Date.now) {
     this.repository = new CatalogRepository(db)
   }
   private now(): string { return new Date(this.clock()).toISOString() }
@@ -40,6 +41,7 @@ export class CatalogService {
     const id = randomUUID(); const now = this.now(); const sku = input.sku.trim(); const name = input.name.trim()
     try {
       this.db.transaction(() => {
+        const image = input.imageSelectionId ? this.images.getSelectionForSave(token, senderId, input.imageSelectionId) : null
         if (input.categoryId) {
           const category = this.repository.getCategory(input.categoryId)
           if (!category) throw new AppError('NOT_FOUND')
@@ -49,8 +51,10 @@ export class CatalogService {
           VALUES(?,?,?,?,?,?,0,?,?,1,?,?)`).run(id, sku, name, name.toLowerCase(), input.categoryId, input.unit.trim(), input.reorderLevel, input.note?.trim() || null, now, now)
         audit(this.db, 'PRODUCT_CREATED', actor, 'product', id, { sku, name, categoryId: input.categoryId, unit: input.unit.trim(), reorderLevel: input.reorderLevel })
         if (input.initialStock > 0) this.inventory.recordOpeningForNewProduct(id, input.initialStock, actor)
+        if (image) this.images.setProductImage(id, image, actor, 'ADDED', now)
       }).immediate()
     } catch (error) { translateConstraint(error, 'product') }
+    if (input.imageSelectionId) this.images.consumeSelection(senderId, input.imageSelectionId)
     const product = this.repository.getProduct(id)
     if (!product) throw new AppError('DATABASE_ERROR')
     return product
@@ -59,6 +63,9 @@ export class CatalogService {
     const actor = this.requireActor(token, senderId, 'ADMIN'); const now = this.now(); const sku = input.sku.trim(); const name = input.name.trim()
     try {
       this.db.transaction(() => {
+        const image = input.imageChange.action === 'REPLACE'
+          ? this.images.getSelectionForSave(token, senderId, input.imageChange.selectionId)
+          : null
         const old = this.repository.getProduct(input.productId)
         if (!old) throw new AppError('NOT_FOUND')
         if (input.categoryId) {
@@ -73,8 +80,14 @@ export class CatalogService {
           oldCategoryId: old.categoryId, newCategoryId: input.categoryId,
           oldUnit: old.unit, newUnit: input.unit.trim(), oldReorderLevel: old.reorderLevel, newReorderLevel: input.reorderLevel
         })
+        if (input.imageChange.action === 'REMOVE') this.images.removeProductImage(input.productId, actor)
+        if (image) {
+          const exists = this.db.prepare('SELECT 1 FROM product_images WHERE product_id=?').get(input.productId)
+          this.images.setProductImage(input.productId, image, actor, exists ? 'REPLACED' : 'ADDED', now)
+        }
       }).immediate()
     } catch (error) { translateConstraint(error, 'product') }
+    if (input.imageChange.action === 'REPLACE') this.images.consumeSelection(senderId, input.imageChange.selectionId)
     const product = this.repository.getProduct(input.productId)
     if (!product) throw new AppError('DATABASE_ERROR')
     return product

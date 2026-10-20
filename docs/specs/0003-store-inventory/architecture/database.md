@@ -17,6 +17,7 @@ SQLiteはuserData内の固定ファイル `store-inventory.sqlite` に保存し�
 | `password_reset_codes` | `id TEXT PK`, `user_id TEXT NN REFERENCES users(id) ON DELETE RESTRICT`, `code_hash TEXT NN`, `expires_at TEXT NN`, `failed_attempt_count INTEGER NN DEFAULT 0 CHECK(>=0)`, `consumed_at/revoked_at TEXT NULL`, `created_at TEXT NN`, `issuer_user_id TEXT NULL REFERENCES users(id) ON DELETE SET NULL`, `issuer_kind TEXT NN CHECK(ADMIN/OFFLINE_RECOVERY)`。ユーザーごとに未消費・未失効コードは最大1件（部分一意索引） |
 | `categories` | `id TEXT PK`, `name TEXT NN UNIQUE COLLATE NOCASE`, `name_key TEXT NN UNIQUE`, `is_active INTEGER NN DEFAULT 1 CHECK(0/1)`, `created_at/updated_at TEXT NN` |
 | `products` | `id TEXT PK`, `sku TEXT NN`, `name TEXT NN`, `name_search_key TEXT NN`, `category_id TEXT NULL REFERENCES categories(id) ON DELETE RESTRICT`, `unit TEXT NN`, `current_stock INTEGER NN DEFAULT 0 CHECK(0〜上限)`, `reorder_level INTEGER NN DEFAULT 0 CHECK(0〜上限)`, `note TEXT NULL`, `is_active INTEGER NN DEFAULT 1 CHECK(0/1)`, `created_at/updated_at TEXT NN`。`UNIQUE(sku COLLATE NOCASE)` |
+| `product_images` | `product_id TEXT PK REFERENCES products(id) ON DELETE RESTRICT`, `content BLOB NN CHECK(typeof(blob) AND 1〜5,242,880 byte)`, `mime_type TEXT NN CHECK(image/png)`, `width/height INTEGER NN CHECK(1〜4,096)`, `updated_at TEXT NN`。1商品あたり最大1画像 |
 | `stock_movements` | `id TEXT PK`, `product_id TEXT NN REFERENCES products(id) ON DELETE RESTRICT`, `movement_type TEXT NN CHECK(OPENING/RECEIPT/ISSUE/ADJUSTMENT)`, `quantity_delta INTEGER NN`, `stock_before/stock_after INTEGER NN CHECK(0〜上限)`, `reason_code TEXT NN`, `note TEXT NULL`, `actor_user_id TEXT NULL REFERENCES users(id) ON DELETE SET NULL`, `actor_login_snapshot/actor_name_snapshot TEXT NN`, `created_at TEXT NN`。`CHECK(stock_after = stock_before + quantity_delta)` |
 | `audit_logs` | `id TEXT PK`, `actor_user_id TEXT NULL REFERENCES users(id) ON DELETE SET NULL`, `actor_login_snapshot/actor_name_snapshot/actor_role_snapshot TEXT NULL`, `actor_kind TEXT NN CHECK(USER/OFFLINE_RECOVERY/SYSTEM)`, `action TEXT NN`, `entity_type/entity_id/details_json TEXT NULL`, `created_at TEXT NN` |
 | `app_settings` | `key TEXT PK`, `value TEXT NN`, `updated_at TEXT NN`。店舗名と無操作ロック時間などを型付きサービス経由で保存 |
@@ -37,11 +38,13 @@ SQLiteはuserData内の固定ファイル `store-inventory.sqlite` に保存し�
 
 適用済みファイルは書き換えず、新しい番号を追加する。新規DBと旧版DBの両方をテストする。既存DBの移行前には一貫性のあるバックアップを取り、移行失敗時は通常起動せず原本を保持する。復元候補はコピー上で検証・必要な対応済み移行を済ませ、未来版・別アプリ・破損DBを拒否する。
 
-移行1はPhase 1でapp_meta/users/reset/audit/settings、移行3はPhase 2でcategories/products、移行4はPhase 3でstock_movementsと索引、移行5はPhase 4でaudit_logs.actor_kindを追加する（移行2はreset/audit索引）。0004の移行6は商品あたりOPENING最大1件の部分一意索引を追加し、既存の重複があれば削除せず移行を停止する。後続フェーズは既適用番号を変更しない。バックアップ/復旧ツールの対応上限も移行6とする。
+移行1はPhase 1でapp_meta/users/reset/audit/settings、移行3はPhase 2でcategories/products、移行4はPhase 3でstock_movementsと索引、移行5はPhase 4でaudit_logs.actor_kindを追加する（移行2はreset/audit索引）。0004の移行6は商品あたりOPENING最大1件の部分一意索引を追加し、移行7は任意の商品画像を保存する`product_images`を追加する。移行7は既存商品に画像行を作らず、既適用1〜6を変更しない。バックアップ/復旧ツールの対応上限はマイグレーション定義から得る現行schema version 7とする。
 
 ## トランザクションと不変条件
 
 商品・カテゴリ・ユーザーの変更と監査、初期セットアップ全体、コード失効/発行、再設定完了と失敗制御更新は、それぞれ同一トランザクションにする。最後の有効ADMIN保護とセットアップ再実行拒否は同じ書込みトランザクションで再確認する。
+
+画像の追加・置換・削除も商品変更、正数の初期在庫、各監査記録と同じIMMEDIATEトランザクションに含める。画像監査には商品ID・寸法・バイト数・変更種別のみを記録し、画像本体や元ファイルのパス/名前を含めない。
 
 在庫サービスでは書込み権を確保してから現在庫を読み、更新・movement・auditを一括確定する。推奨はIMMEDIATEトランザクション。読取後の古い値を別トランザクションで上書きしない。失敗は全体をロールバックし、busy timeout超過は `DATABASE_BUSY` に変換する。`stock_movements`は数量差分を整数に限定し、before/afterと差分の整合、範囲、種別、理由をDB CHECKでも検証する。
 

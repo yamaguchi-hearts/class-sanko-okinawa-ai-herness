@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, BackupCandidate, CategorySummary, CreateProductInput, CreateUserInput, DashboardSummary, DataOperationResult, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductListQuery, ProductSummary, RecordStockMovementInput, RecordStockMovementResult, ResetInput, SessionView, SetupInput, StockActorOption, StockMovementQuery, StockMovementSummary, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
+import type { AppSettings, BackupCandidate, CategorySummary, CreateProductInput, CreateUserInput, DashboardSummary, DataOperationResult, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductImageData, ProductImageSelectionResult, ProductImageVariant, ProductListQuery, ProductSummary, RecordStockMovementInput, RecordStockMovementResult, ResetInput, SessionView, SetupInput, StockActorOption, StockMovementQuery, StockMovementSummary, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
 
 let internalToken: string | null = null
 type TokenResponse = IpcResult<{ session: SessionView; internalToken: string }>
@@ -38,6 +38,11 @@ const api = Object.freeze({
     create: (input: CreateProductInput) => protectedCall<ProductSummary>('products:create', input),
     update: (input: UpdateProductInput) => protectedCall<ProductSummary>('products:update', input),
     deactivate: (productId: string) => protectedCall<null>('products:deactivate', productId)
+  }),
+  productImages: Object.freeze({
+    select: () => protectedCall<ProductImageSelectionResult>('productImages:select'),
+    discardSelection: (selectionId: string) => protectedCall<null>('productImages:discardSelection', { selectionId }),
+    get: (productId: string, variant: ProductImageVariant) => protectedCall<ProductImageData | null>('productImages:get', { productId, variant })
   }),
   categories: Object.freeze({
     list: (includeInactive = false) => protectedCall<CategorySummary[]>('categories:list', { includeInactive }),

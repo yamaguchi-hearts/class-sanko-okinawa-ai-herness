@@ -2,10 +2,13 @@ import { test, expect, _electron as electron } from '@playwright/test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import Database from 'better-sqlite3'
+import { tinyPng } from '../fixtures/tiny-png'
 
 test.setTimeout(300_000)
 test('first setup, restart login, STAFF code setup and Main authorization', async () => {
   const userData = await mkdtemp(join(tmpdir(), 'inventory-auth-e2e-'))
+  let imageProductId: string
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined) env[key] = value
   delete env.ELECTRON_RUN_AS_NODE
@@ -81,7 +84,7 @@ test('first setup, restart login, STAFF code setup and Main authorization', asyn
     if (!listed.ok || !listed.value.items[0]) throw new Error('Created product is required')
     expect(listed.value.items[0].currentStock).toBe(0)
     const unsafeUpdate = await window.evaluate(async (productId) => {
-      const invalidInput = { productId, sku: 'BOX_01', name: '50% bundle', categoryId: null, unit: '個', reorderLevel: 0, note: null, currentStock: 999, initialStock: 999 }
+      const invalidInput = { productId, sku: 'BOX_01', name: '50% bundle', categoryId: null, unit: '個', reorderLevel: 0, note: null, currentStock: 999, initialStock: 999, imageChange: { action: 'KEEP' as const } }
       return globalThis.window.storeApp.products.update(invalidInput)
     }, listed.value.items[0].id)
     expect(unsafeUpdate).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } })
@@ -145,7 +148,7 @@ test('first setup, restart login, STAFF code setup and Main authorization', asyn
     await expect(window.getByText('店舗担当者（STAFF）')).toBeVisible()
     const denied = await window.evaluate(async () => globalThis.window.storeApp.users.list())
     expect(denied).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
-    const productDenied = await window.evaluate(async () => globalThis.window.storeApp.products.create({ sku: 'DENIED', name: '拒否商品', categoryId: null, unit: '個', reorderLevel: 0, note: null, initialStock: 0 }))
+    const productDenied = await window.evaluate(async () => globalThis.window.storeApp.products.create({ sku: 'DENIED', name: '拒否商品', categoryId: null, unit: '個', reorderLevel: 0, note: null, initialStock: 0, imageSelectionId: null }))
     expect(productDenied).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     const staffProducts = await window.evaluate(async () => globalThis.window.storeApp.products.list({ search: '', categoryId: null, status: 'ALL', stockFilter: 'ALL', sortKey: 'name', direction: 'asc', page: 1, pageSize: 50 }))
     if (!staffProducts.ok || !staffProducts.value.items[0]) throw new Error('STAFF product list is required')
@@ -172,6 +175,36 @@ test('first setup, restart login, STAFF code setup and Main authorization', asyn
     await window.getByLabel('種別').selectOption('OPENING')
     await window.getByRole('button', { name: '絞り込む' }).click()
     await expect(window.locator('tbody')).toContainText('初期在庫')
+
+    await app.close()
+    const imageDb = new Database(join(userData, 'store-inventory.sqlite'))
+    try {
+      imageProductId = (imageDb.prepare("SELECT id FROM products WHERE sku='OPENING_E2E'").get() as { id: string }).id
+      imageDb.prepare("INSERT INTO product_images(product_id,content,mime_type,width,height,updated_at) VALUES(?,?,'image/png',1,1,?)")
+        .run(imageProductId, tinyPng, new Date().toISOString())
+    } finally { imageDb.close() }
+    app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`], env })
+    window = await app.firstWindow()
+    await window.getByLabel('ログインID').fill('admin')
+    await window.getByLabel('パスワード', { exact: true }).fill('wxyz')
+    await window.getByRole('button', { name: 'ログイン' }).click()
+    await window.getByRole('button', { name: '商品一覧' }).click()
+    const imageResult = await window.evaluate(async (productId) => globalThis.window.storeApp.productImages.get(productId, 'THUMBNAIL'), imageProductId)
+    if (!imageResult.ok) throw new Error(`Image thumbnail IPC failed: ${JSON.stringify(imageResult.error)}`)
+    expect(imageResult).toMatchObject({ ok: true, value: { updatedAt: expect.any(String), dataUrl: expect.stringContaining('data:image/png;base64,') } })
+    const imageButton = window.getByRole('button', { name: '初期在庫E2E商品の商品画像を拡大表示' })
+    await expect(imageButton).toBeVisible()
+    await expect(imageButton.locator('img')).toHaveJSProperty('naturalWidth', 1)
+    await imageButton.click()
+    const detailDialog = window.getByRole('dialog', { name: '初期在庫E2E商品の商品画像' })
+    await expect(detailDialog.locator('img')).toHaveJSProperty('naturalWidth', 1)
+    await detailDialog.getByRole('button', { name: '画像を閉じる' }).click()
+    const imageRow = window.locator('tbody tr').filter({ hasText: 'OPENING_E2E' })
+    await imageRow.getByRole('button', { name: '編集' }).click()
+    await expect(window.locator('.product-image-preview img')).toHaveJSProperty('naturalWidth', 1)
+    await window.getByRole('button', { name: '登録画像を削除' }).click()
+    await window.getByRole('button', { name: '変更を保存' }).click()
+    await expect(imageRow.locator('.product-image-empty')).toHaveText('画像なし')
   } finally {
     await app.close()
     await rm(userData, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })

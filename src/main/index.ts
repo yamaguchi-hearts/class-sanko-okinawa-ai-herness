@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session } from 'electron'
+import { app, BrowserWindow, nativeImage, session } from 'electron'
 import { resolve } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
@@ -10,6 +10,7 @@ import { AuthService } from './auth/service'
 import { registerIpc } from './ipc/register'
 import { CatalogService } from './services/catalog'
 import { InventoryService } from './services/inventory'
+import { ProductImageService } from './services/product-images'
 import { MaintenanceService, cleanupRestoreCandidates, recoverInterruptedRestore } from './services/maintenance'
 
 const appId = 'jp.co.sanko-okinawa.store-inventory'
@@ -29,6 +30,7 @@ let releaseDataLock: (() => Promise<void>) | undefined
 let finishingQuit = false
 let mainWindow: BrowserWindow | null = null
 let auth: AuthService | null = null
+let productImages: ProductImageService | null = null
 let appDb: ReturnType<typeof openStoreDatabase> | null = null
 let dbClosedForRestore = false
 
@@ -53,14 +55,15 @@ async function createWindow(): Promise<void> {
     }
   })
   mainWindow = window
+  const senderId = window.webContents.id
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   window.webContents.on('will-navigate', (event, url) => {
     if (!isAllowedAppUrl(url)) event.preventDefault()
   })
   window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
-    if (!isInPlace && isMainFrame) auth?.logout(window.webContents.id)
+    if (!isInPlace && isMainFrame) auth?.logout(senderId)
   })
-  window.on('closed', () => { mainWindow = null })
+  window.on('closed', () => { auth?.logout(senderId); productImages?.clearSender(senderId); mainWindow = null })
   if (app.isPackaged) await window.loadFile(resolve(__dirname, '../renderer/index.html'))
   else await window.loadURL(allowedDevUrl)
 }
@@ -71,7 +74,7 @@ app.on('web-contents-created', (_event, contents) => {
 
 app.on('before-quit', (event) => {
   if (finishingQuit || !releaseDataLock) {
-    if (finishingQuit) { if (!dbClosedForRestore) appDb?.close(); appDb = null }
+    if (finishingQuit) { productImages?.dispose(); if (!dbClosedForRestore) appDb?.close(); appDb = null }
     return
   }
   event.preventDefault()
@@ -105,13 +108,14 @@ app.whenReady().then(async () => {
   auth = new AuthService(appDb)
   const maintenance = new MaintenanceService(appDb, auth, userData, databasePath)
   const inventory = new InventoryService(appDb, auth)
-  const catalog = new CatalogService(appDb, auth, inventory)
-  registerIpc(auth, catalog, inventory, () => mainWindow?.webContents ?? null, isAllowedAppUrl, maintenance, () => mainWindow, () => {
+  productImages = new ProductImageService(appDb, auth, (content) => nativeImage.createFromBuffer(content))
+  const catalog = new CatalogService(appDb, auth, inventory, productImages)
+  registerIpc(auth, catalog, inventory, () => mainWindow?.webContents ?? null, isAllowedAppUrl, maintenance, productImages, () => mainWindow, () => {
     dbClosedForRestore = true
     app.relaunch()
     setTimeout(() => app.quit(), 100)
   })
-  setInterval(() => auth?.expireIdleSessions(), 5_000).unref()
+  setInterval(() => { auth?.expireIdleSessions(); productImages?.clearExpired() }, 5_000).unref()
   await createWindow()
 }).catch((error: unknown) => {
   console.error('Application startup failed:', error instanceof Error ? error.message : 'unknown error')

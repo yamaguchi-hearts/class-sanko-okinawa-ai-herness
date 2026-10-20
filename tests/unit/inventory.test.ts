@@ -6,6 +6,7 @@ import { openStoreDatabase } from '../../src/main/db/connection'
 import { AppError, AuthService } from '../../src/main/auth/service'
 import { CatalogService } from '../../src/main/services/catalog'
 import { InventoryService } from '../../src/main/services/inventory'
+import { ProductImageService } from '../../src/main/services/product-images'
 import { calculateStockChange, isLowStock, isZeroStock, localDateRangeToUtc, MAX_STOCK } from '../../src/shared/domain/inventory'
 import { validateRecordStockMovement, validateStockMovementQuery } from '../../src/shared/validation'
 import type { ProductDraft, RecordStockMovementInput, StockMovementQuery } from '../../src/shared/contracts'
@@ -23,13 +24,13 @@ async function setup(clock: () => number = Date.now): Promise<void> {
   db = openStoreDatabase(join(dir, 'store.sqlite'))
   auth = new AuthService(db, clock)
   inventory = new InventoryService(db, auth, clock)
-  catalog = new CatalogService(db, auth, inventory, clock)
+  catalog = new CatalogService(db, auth, inventory, new ProductImageService(db, auth, () => { throw new Error('Image decoder is not used in this test') }), clock)
   const admin = await auth.setup({ storeName: '検証店舗', displayName: '管理者', loginName: 'admin', password: 'inventory test passphrase' }, 1)
   adminToken = admin.token
 }
 
 const draft = (patch: Partial<ProductDraft> = {}): ProductDraft => ({ sku: 'STOCK-1', name: '在庫商品', categoryId: null, unit: '個', reorderLevel: 1, note: null, ...patch })
-const createProduct = (patch: Partial<ProductDraft> = {}, initialStock = 0) => catalog.createProduct(adminToken, 1, { ...draft(patch), initialStock })
+const createProduct = (patch: Partial<ProductDraft> = {}, initialStock = 0) => catalog.createProduct(adminToken, 1, { ...draft(patch), initialStock, imageSelectionId: null })
 const query = (patch: Partial<StockMovementQuery> = {}): StockMovementQuery => ({ productId: null, startAt: null, endAt: null, type: null, actorUserId: null, page: 1, pageSize: 50, ...patch })
 const record = (productId: string, patch: Partial<RecordStockMovementInput> & { type: 'RECEIPT' | 'ISSUE'; quantity?: number } = { type: 'RECEIPT', quantity: 1 }): RecordStockMovementInput => ({
   productId, type: patch.type, quantity: patch.quantity ?? 1, reasonCode: patch.reasonCode ?? 'OTHER', note: patch.note ?? null

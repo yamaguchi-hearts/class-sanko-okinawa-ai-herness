@@ -1,10 +1,11 @@
 import { ipcMain, dialog, type IpcMainInvokeEvent, type WebContents, type BrowserWindow } from 'electron'
 import { AppError, AuthService } from '../auth/service'
-import { validateCategoryList, validateCategoryName, validateCreateProduct, validateCreateUser, validateLogin, validateNewPassword, validatePasswordChange, validateProductListQuery, validateRecordStockMovement, validateReset, validateSetup, validateStockMovementQuery, validateUpdateCategory, validateUpdateProduct, validateUpdateUser } from '../../shared/validation'
+import { validateCategoryList, validateCategoryName, validateCreateProduct, validateCreateUser, validateLogin, validateNewPassword, validatePasswordChange, validateProductImageGet, validateProductImageSelectionId, validateProductListQuery, validateRecordStockMovement, validateReset, validateSetup, validateStockMovementQuery, validateUpdateCategory, validateUpdateProduct, validateUpdateUser } from '../../shared/validation'
 import type { ValidationResult } from '../../shared/validation'
 import type { IpcResult, PublicErrorCode } from '../../shared/contracts'
 import type { CatalogService } from '../services/catalog'
 import type { InventoryService } from '../services/inventory'
+import type { ProductImageService } from '../services/product-images'
 import type { MaintenanceService } from '../services/maintenance'
 
 type TokenEnvelope<T> = { token: string; value: T }
@@ -26,7 +27,7 @@ function errorResult(error: unknown): IpcResult<never> {
   return { ok: false, error: { code, message: code === 'DATABASE_BUSY' ? 'データベースが使用中です。少し待ってから再試行してください。' : '処理を完了できませんでした。' } }
 }
 
-export function registerIpc(auth: AuthService, catalog: CatalogService, inventory: InventoryService, getMainContents: () => WebContents | null, allowedUrl: (url: string) => boolean, maintenance: MaintenanceService, getWindow: () => BrowserWindow | null, restart: () => void): void {
+export function registerIpc(auth: AuthService, catalog: CatalogService, inventory: InventoryService, getMainContents: () => WebContents | null, allowedUrl: (url: string) => boolean, maintenance: MaintenanceService, productImages: ProductImageService, getWindow: () => BrowserWindow | null, restart: () => void): void {
   let maintenanceMode = false
   let inFlight = 0
   const assertSender = (event: IpcMainInvokeEvent): number => {
@@ -65,7 +66,7 @@ export function registerIpc(auth: AuthService, catalog: CatalogService, inventor
     return { session: result.view, internalToken: result.token }
   })
   handle('auth:getSession', (_event, senderId) => auth.getSession(senderId))
-  handle('auth:logout', (_event, senderId) => { auth.logout(senderId); return null })
+  handle('auth:logout', (_event, senderId) => { auth.logout(senderId); productImages.clearSender(senderId); return null })
   handle('auth:unlock', async (_event, senderId, raw) => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw as object).join(',') !== 'password' || typeof (raw as { password?: unknown }).password !== 'string') throw new AppError('VALIDATION_ERROR')
     const result = await auth.unlock((raw as { password: string }).password, senderId)
@@ -105,6 +106,22 @@ export function registerIpc(auth: AuthService, catalog: CatalogService, inventor
   )
   handle('products:update', (_event, senderId, token, raw) => catalog.updateProduct(String(token), senderId, valid(validateUpdateProduct(raw)))
   )
+  handle('productImages:select', async (_event, senderId, token) => {
+    productImages.assertAdmin(String(token), senderId)
+    const options = { title: '商品画像を選択', properties: ['openFile'] as Array<'openFile'>, filters: [{ name: 'PNG/JPEG画像', extensions: ['png', 'jpg', 'jpeg'] }] }
+    const parent = getWindow()
+    const selected = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
+    if (selected.canceled || !selected.filePaths[0]) return { cancelled: true }
+    return { cancelled: false, selection: await productImages.selectFile(String(token), senderId, selected.filePaths[0]) }
+  })
+  handle('productImages:discardSelection', (_event, senderId, token, raw) => {
+    const input = valid(validateProductImageSelectionId(raw))
+    return productImages.discardSelection(String(token), senderId, input.selectionId)
+  })
+  handle('productImages:get', (_event, senderId, token, raw) => {
+    const input = valid(validateProductImageGet(raw))
+    return productImages.get(String(token), senderId, input.productId, input.variant)
+  })
   handle('products:deactivate', (_event, senderId, token, productId) => {
     if (typeof productId !== 'string' || !/^[0-9a-f-]{36}$/i.test(productId)) throw new AppError('VALIDATION_ERROR')
     catalog.deactivateProduct(String(token), senderId, productId); return null
@@ -162,6 +179,7 @@ export function registerIpc(auth: AuthService, catalog: CatalogService, inventor
     const parent = getWindow()
     const confirmed = parent ? await dialog.showMessageBox(parent, confirmOptions) : await dialog.showMessageBox(confirmOptions)
     if (confirmed.response !== 0) { maintenance.recordDialogCancelled(String(token), senderId, 'RESTORE_CANCELLED'); return { cancelled: true } }
+    productImages.clearAll()
     maintenanceMode = true
     while (inFlight > 0) await new Promise((resolve) => setTimeout(resolve, 10))
     let restartRequested = false

@@ -124,5 +124,20 @@ export const migrations: readonly Migration[] = [
       if (duplicate) throw new Error('OPENING_MOVEMENT_DUPLICATES_EXIST')
       db.exec("CREATE UNIQUE INDEX stock_movements_one_opening_per_product ON stock_movements(product_id) WHERE movement_type='OPENING'")
     }
+  },
+  {
+    version: 7,
+    up(db) {
+      db.exec(`CREATE TABLE product_images (
+        product_id TEXT PRIMARY KEY REFERENCES products(id) ON DELETE RESTRICT,
+        content BLOB NOT NULL CHECK (typeof(content)='blob' AND length(content) BETWEEN 1 AND 5242880),
+        mime_type TEXT NOT NULL CHECK (mime_type='image/png'),
+        width INTEGER NOT NULL CHECK (typeof(width)='integer' AND width BETWEEN 1 AND 4096),
+        height INTEGER NOT NULL CHECK (typeof(height)='integer' AND height BETWEEN 1 AND 4096),
+        updated_at TEXT NOT NULL
+      )`)
+    }
   }
 ]
+
+export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0

@@ -1,4 +1,4 @@
-import type { CreateProductInput, CreateUserInput, LoginInput, NewPasswordInput, PasswordChangeInput, ProductListQuery, ProductSortKey, ProductStatusFilter, ProductStockFilter, RecordStockMovementInput, ResetInput, Role, SetupInput, StockMovementQuery, StockMovementType, StockReasonCode, UpdateCategoryInput, UpdateProductInput, UpdateUserInput } from '../contracts'
+import type { CreateProductInput, CreateUserInput, LoginInput, NewPasswordInput, PasswordChangeInput, ProductImageChange, ProductListQuery, ProductSortKey, ProductStatusFilter, ProductStockFilter, ProductImageVariant, RecordStockMovementInput, ResetInput, Role, SetupInput, StockMovementQuery, StockMovementType, StockReasonCode, UpdateCategoryInput, UpdateProductInput, UpdateUserInput } from '../contracts'
 
 export type ValidationIssue = Readonly<{ path: string; message: string }>
 export type ValidationResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; issues: readonly ValidationIssue[] }>
@@ -87,12 +87,30 @@ const productFields = {
 }
 export const validateCreateProduct = (v: unknown) => parse<CreateProductInput>(v, {
   ...productFields,
-  initialStock: (x) => Number.isSafeInteger(x.initialStock) && (x.initialStock as number) >= 0 && (x.initialStock as number) <= 2_147_483_647 ? x.initialStock : undefined
-}, ['sku', 'name', 'categoryId', 'unit', 'reorderLevel', 'note', 'initialStock'])
+  initialStock: (x) => Number.isSafeInteger(x.initialStock) && (x.initialStock as number) >= 0 && (x.initialStock as number) <= 2_147_483_647 ? x.initialStock : undefined,
+  imageSelectionId: (x) => x.imageSelectionId === null || typeof x.imageSelectionId === 'string' && /^[0-9a-f-]{36}$/i.test(x.imageSelectionId) ? x.imageSelectionId : undefined
+}, ['sku', 'name', 'categoryId', 'unit', 'reorderLevel', 'note', 'initialStock', 'imageSelectionId'])
 export const validateUpdateProduct = (v: unknown) => parse<UpdateProductInput>(v, {
   ...productFields,
-  productId: (x) => typeof x.productId === 'string' && /^[0-9a-f-]{36}$/i.test(x.productId) ? x.productId : undefined
-}, ['productId', 'sku', 'name', 'categoryId', 'unit', 'reorderLevel', 'note'])
+  productId: (x) => typeof x.productId === 'string' && /^[0-9a-f-]{36}$/i.test(x.productId) ? x.productId : undefined,
+  imageChange: (x) => {
+    if (!isRecord(x.imageChange)) return undefined
+    if (x.imageChange.action === 'KEEP' || x.imageChange.action === 'REMOVE') {
+      return Object.keys(x.imageChange).length === 1 ? { action: x.imageChange.action } as ProductImageChange : undefined
+    }
+    if (x.imageChange.action === 'REPLACE' && Object.keys(x.imageChange).length === 2 && typeof x.imageChange.selectionId === 'string' && /^[0-9a-f-]{36}$/i.test(x.imageChange.selectionId)) {
+      return { action: 'REPLACE', selectionId: x.imageChange.selectionId }
+    }
+    return undefined
+  }
+}, ['productId', 'sku', 'name', 'categoryId', 'unit', 'reorderLevel', 'note', 'imageChange'])
+export const validateProductImageSelectionId = (v: unknown) => parse<{ selectionId: string }>(v, {
+  selectionId: (x) => typeof x.selectionId === 'string' && /^[0-9a-f-]{36}$/i.test(x.selectionId) ? x.selectionId : undefined
+}, ['selectionId'])
+export const validateProductImageGet = (v: unknown) => parse<{ productId: string; variant: ProductImageVariant }>(v, {
+  productId: (x) => typeof x.productId === 'string' && /^[0-9a-f-]{36}$/i.test(x.productId) ? x.productId : undefined,
+  variant: (x) => x.variant === 'THUMBNAIL' || x.variant === 'DETAIL' ? x.variant : undefined
+}, ['productId', 'variant'])
 export const validateProductListQuery = (v: unknown) => parse<ProductListQuery>(v, {
   search: (x) => typeof x.search === 'string' && [...x.search.trim()].length <= 200 ? x.search.trim() : undefined,
   categoryId: (x) => uuidField(x, 'categoryId'),

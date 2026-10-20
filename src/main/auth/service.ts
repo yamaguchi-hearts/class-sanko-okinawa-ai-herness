@@ -21,6 +21,7 @@ export class AuthService {
   private readonly sessions = new Map<string, AuthSession>()
   private readonly tokenBySender = new Map<number, string>()
   private readonly lockContexts = new Map<number, LockContext>()
+  private readonly sessionRevokedListeners = new Set<(senderId: number) => void>()
   private readonly anonymousFailures = new Map<string, { count: number; lockedUntil: number }>()
   private readonly resetFailures = new Map<string, { count: number; lockedUntil: number }>()
   private dummyHash?: Promise<string>
@@ -61,6 +62,11 @@ export class AuthService {
     const old = this.tokenBySender.get(senderId)
     if (old) this.sessions.delete(old)
     this.tokenBySender.delete(senderId)
+    for (const listener of this.sessionRevokedListeners) listener(senderId)
+  }
+  onSessionRevoked(listener: (senderId: number) => void): () => void {
+    this.sessionRevokedListeners.add(listener)
+    return () => this.sessionRevokedListeners.delete(listener)
   }
   revokeUser(userId: string): void {
     for (const session of this.sessions.values()) if (session.userId === userId) this.revokeSender(session.senderId)

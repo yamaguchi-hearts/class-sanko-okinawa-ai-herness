@@ -51,6 +51,7 @@
 | D-41 | 復旧ツールは専用ElectronエントリーをWindows x64 portable targetとして別appId・`requireAdministrator`で配布する。通常アプリと同じuserDataディレクトリロックを使用する | PCにNode開発環境を要求せず、アプリの昇格を常態化させず、同時書込みを拒否する |
 | D-42 | DEMOの新規パスワードは4〜128 Unicodeコードポイントとし、0003の12文字下限を置き換える。ログイン・ロック解除・現在パスワード照合は既存の1〜128文字条件を維持する | [0004 R-DEMO](../../0004-demo-enhancements/requirements/demo-password.md)による管理者確定要件。既存ハッシュや認証機構は変更しない |
 | D-43 | 新規商品の正数初期在庫は商品作成と同じIMMEDIATEトランザクション内でOPENING履歴・在庫監査へ記録し、移行6の部分一意索引で商品あたり1件に制約する。バックアップ/復旧の対応スキーマ上限も6へ更新する | [0004 R-OPENING](../../0004-demo-enhancements/features/opening-stock.md)を適用し、通常の在庫APIや商品編集からOPENING/初期在庫を作れないようにする |
+| D-44 | 商品画像は1商品1枚のPNG BLOBとして移行7に保存し、PNG/JPEG入力をMainで実デコード後にPNGへ正規化する。候補はsender・本人限定で10分保持し、商品/初期在庫/監査と同じIMMEDIATEトランザクションで確定する。バックアップと復旧検査の上限はマイグレーション定義を参照する | [0004 R-IMAGE](../../0004-demo-enhancements/features/product-images.md)を適用。既存DB移行を不変にし、画像パスや画像本体を監査へ残さず、配布版を含む画像復元を可能にする |
 
 ## Phase 0 技術確定・実測
 

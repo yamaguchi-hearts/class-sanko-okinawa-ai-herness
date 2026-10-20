@@ -8,6 +8,8 @@ import { openStoreDatabase } from '../../src/main/db/connection'
 import { AuthService, AppError } from '../../src/main/auth/service'
 import { CatalogService } from '../../src/main/services/catalog'
 import { InventoryService } from '../../src/main/services/inventory'
+import { ProductImageService } from '../../src/main/services/product-images'
+import type { DecodedProductImage } from '../../src/main/services/product-images'
 import { MaintenanceService, recoverInterruptedRestore, safeCsvText } from '../../src/main/services/maintenance'
 import type { ProductListQuery } from '../../src/shared/contracts'
 
@@ -15,6 +17,8 @@ let dir = ''
 let db: ReturnType<typeof openStoreDatabase> | null = null
 afterEach(() => { db?.close(); db = null; if (dir) rmSync(dir, { recursive: true, force: true, maxRetries: 5 }); dir = '' })
 const query: ProductListQuery = { search: '', categoryId: null, status: 'ALL', stockFilter: 'ALL', sortKey: 'sku', direction: 'asc', page: 1, pageSize: 1 }
+const tinyPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aVf8AAAAASUVORK5CYII=', 'base64')
+const imageDecoder = (content: Buffer): DecodedProductImage => ({ isEmpty: () => false, getSize: () => ({ width: 1, height: 1 }), toPNG: () => Buffer.from(tinyPng), resize: () => imageDecoder(content) })
 
 describe('CSV/settings/backup maintenance', () => {
   it('prefixes dangerous leading formulas after whitespace and quotes CSV controls', () => {
@@ -34,10 +38,10 @@ describe('CSV/settings/backup maintenance', () => {
   it('exports every matching page with fixed BOM/columns and records an audit without changing source text', async () => {
     dir = mkdtempSync(join(tmpdir(), 'inventory-maintenance-'))
     db = openStoreDatabase(join(dir, 'store.sqlite'))
-    const auth = new AuthService(db), inventory = new InventoryService(db, auth), catalog = new CatalogService(db, auth, inventory)
+    const auth = new AuthService(db), inventory = new InventoryService(db, auth), images = new ProductImageService(db, auth, () => { throw new Error('Image decoder is not used in this test') }), catalog = new CatalogService(db, auth, inventory, images)
     const admin = await auth.setup({ storeName: '検証店', displayName: '管理者', loginName: 'admin', password: 'maintenance test password' }, 4)
-    catalog.createProduct(admin.token, 4, { sku: 'A', name: '=商品', categoryId: null, unit: '個', reorderLevel: 1, note: 'a,"b"\nc', initialStock: 0 })
-    catalog.createProduct(admin.token, 4, { sku: 'B', name: '通常商品', categoryId: null, unit: '箱', reorderLevel: 0, note: null, initialStock: 0 })
+    catalog.createProduct(admin.token, 4, { sku: 'A', name: '=商品', categoryId: null, unit: '個', reorderLevel: 1, note: 'a,"b"\nc', initialStock: 0, imageSelectionId: null })
+    catalog.createProduct(admin.token, 4, { sku: 'B', name: '通常商品', categoryId: null, unit: '箱', reorderLevel: 0, note: null, initialStock: 0, imageSelectionId: null })
     const insert = db.prepare('INSERT INTO products(id,sku,name,name_search_key,category_id,unit,current_stock,reorder_level,note,is_active,created_at,updated_at) VALUES(?,?,?, ?,NULL,?,0,0,NULL,1,?,?)')
     const timestamp = new Date().toISOString()
     for (let i = 0; i < 205; i++) insert.run(`test-product-${i}`, `TEST-${i}`, `追加商品${i}`, `追加商品${i}`, '個', timestamp, timestamp)
@@ -71,7 +75,7 @@ describe('CSV/settings/backup maintenance', () => {
     expect(() => service.updateSettings(staff.token, 5, { storeName: '禁止', idleLockMinutes: 5 })).toThrowError(AppError)
     const output = join(dir, 'backup.sqlite3')
     const backup = await service.createBackup(admin.token, 4, output)
-    expect(backup.schemaVersion).toBe(6)
+    expect(backup.schemaVersion).toBe(7)
     const restored = new Database(output, { readonly: true, fileMustExist: true })
     expect(restored.pragma('integrity_check')).toMatchObject([{ integrity_check: 'ok' }])
     expect((restored.prepare("SELECT value FROM app_meta WHERE key='store_name'").get() as {value:string}).value).toBe('設定後')
@@ -80,6 +84,47 @@ describe('CSV/settings/backup maintenance', () => {
     now += 4 * 60_000
     service.updateSettings(admin.token, 4, { storeName: '設定後', idleLockMinutes: 1 })
     expect(auth.getSession(4)?.state).toBe('LOCKED')
+  })
+
+  it('backs up and restores an image with its opening stock while rejecting a corrupted image candidate', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'inventory-image-backup-'))
+    const dbPath = join(dir, 'store.sqlite')
+    db = openStoreDatabase(dbPath)
+    const auth = new AuthService(db)
+    const admin = await auth.setup({ storeName: '画像復元店舗', displayName: '管理者', loginName: 'admin', password: 'image restore password' }, 4)
+    const inventory = new InventoryService(db, auth)
+    const images = new ProductImageService(db, auth, imageDecoder)
+    const catalog = new CatalogService(db, auth, inventory, images)
+    const sourcePath = join(dir, 'source.png')
+    writeFileSync(sourcePath, tinyPng)
+    const selection = await images.selectFile(admin.token, 4, sourcePath)
+    const item = catalog.createProduct(admin.token, 4, { sku: 'IMAGE-BACKUP', name: '復元画像商品', categoryId: null, unit: '個', reorderLevel: 0, note: null, initialStock: 12, imageSelectionId: selection.selectionId })
+    const service = new MaintenanceService(db, auth, dir, dbPath)
+    const backupPath = join(dir, 'image-backup.sqlite3')
+    const backup = await service.createBackup(admin.token, 4, backupPath)
+    expect(backup.schemaVersion).toBe(7)
+    const candidate = await service.inspectRestoreCandidate(admin.token, 4, backupPath)
+    expect(candidate.schemaVersion).toBe(7)
+
+    const corruptedPath = join(dir, 'corrupted-image-backup.sqlite3')
+    copyFileSync(backupPath, corruptedPath)
+    const corrupted = new Database(corruptedPath)
+    corrupted.prepare('UPDATE product_images SET content=? WHERE product_id=?').run(Buffer.from('not a PNG'), item.id)
+    corrupted.close()
+    await expect(service.inspectRestoreCandidate(admin.token, 4, corruptedPath)).rejects.toMatchObject({ code: 'BACKUP_INVALID' })
+    const validCandidate = await service.inspectRestoreCandidate(admin.token, 4, backupPath)
+
+    catalog.updateProduct(admin.token, 4, { sku: item.sku, name: item.name, categoryId: item.categoryId, unit: item.unit, reorderLevel: item.reorderLevel, note: item.note, productId: item.id, imageChange: { action: 'REMOVE' } })
+    inventory.record(admin.token, 4, { productId: item.id, type: 'ISSUE', quantity: 5, reasonCode: 'OTHER', note: null })
+    let restarted = false
+    await service.applyRestore(admin.token, 4, validCandidate.candidateId, validCandidate.storeName, 'image restore password', (token, senderId, password) => auth.reauthenticateAdmin(token, senderId, password), () => { restarted = true })
+    expect(restarted).toBe(true)
+    db = null
+    const restored = openStoreDatabase(dbPath)
+    expect((restored.prepare('SELECT current_stock FROM products WHERE id=?').get(item.id) as { current_stock: number }).current_stock).toBe(12)
+    expect(restored.prepare('SELECT content,mime_type,width,height FROM product_images WHERE product_id=?').get(item.id)).toMatchObject({ content: tinyPng, mime_type: 'image/png', width: 1, height: 1 })
+    expect((restored.prepare("SELECT COUNT(*) AS count FROM stock_movements WHERE product_id=? AND movement_type='OPENING'").get(item.id) as { count: number }).count).toBe(1)
+    db = restored
   })
 
   it('rejects a non-app SQLite restore candidate without touching the open database', async () => {

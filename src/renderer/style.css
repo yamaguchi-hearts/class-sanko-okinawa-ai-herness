@@ -43,6 +43,16 @@ table { width: 100%; border-collapse: collapse; font-size: 14px; white-space: no
 th, td { border-bottom: 1px solid #e4e9ed; text-align: left; padding: 10px 9px; }
 th { background: #f5f7f9; color: #435463; }
 td small { display: block; color: #966012; }
+.product-image-editor { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
+.product-image-preview { width: 144px; height: 144px; display: grid; place-items: center; border: 1px solid #dbe3e9; background: #fff; color: #687885; }
+.product-image-preview img { width: 100%; height: 100%; object-fit: contain; }
+.product-image-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.product-image-empty { display: grid; place-items: center; width: 72px; height: 72px; color: #687885; background: #f5f7f9; border: 1px solid #dbe3e9; font-size: 12px; }
+.product-thumbnail-button { display: block; width: 72px; height: 72px; padding: 2px; background: #fff; border: 1px solid #dbe3e9; }
+.product-thumbnail-button img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.product-image-modal { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 24px; background: #152536cc; }
+.product-image-modal button { position: absolute; top: 20px; right: 20px; }
+.product-image-modal img { display: block; max-width: min(90vw, 900px); max-height: 88vh; object-fit: contain; background: white; }
 .small { padding: 6px 9px; margin-right: 5px; }
 .pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 .inline-form { grid-template-columns: repeat(3, minmax(120px, 1fr)) auto; align-items: end; }
@@ -67,3 +77,4 @@ dialog::backdrop { background: #15253688; }
 @media (max-width: 760px) { .inline-form { grid-template-columns: 1fr; } .topbar { align-items: flex-start; gap: 12px; flex-direction: column; } .card { padding: 22px; } }
 @media (max-width: 980px) { .filters { grid-template-columns: repeat(2, minmax(0,1fr)); } }
 @media (max-width: 650px) { .stats { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 520px) { .product-image-editor { align-items: flex-start; flex-direction: column; } .product-image-actions { align-items: flex-start; } }

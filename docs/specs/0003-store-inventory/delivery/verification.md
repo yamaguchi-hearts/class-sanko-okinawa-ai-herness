@@ -146,3 +146,20 @@ TypeScriptのCLIは7.0.2のまま、公式互換パッケージ6.0.2（公開API
 - DBを更新インストール後も維持する。READMEだけで別担当者が開発・テスト・配布を再現できる。
 
 実機で未検証のWindows版・Excel版・更新経路は未検証として記録し、初期リリース完成とは報告しない。
+
+## 0004-04 商品画像の実装・検証結果（2026-10-20）
+
+Windows 10.0.26300 x64、Host Node.js 24.21.0、pnpm 10.26.1、Electron 44.9.0で実施。リポジトリ固定Node 24.19.0との差によりengine警告が出る。テストは専用一時userData/SQLiteを使用した。
+
+| コマンド/確認 | 結果 |
+| --- | --- |
+| ESLint / TypeScript / Vitest | 成功。全体lint警告0、TS7型検査成功、単体7ファイル45件成功 |
+| `corepack pnpm run build` | 成功。Mainの画像パーサー分割chunk、Recovery、Preload、Rendererを生成 |
+| 開発版Electron E2E | 3件成功。初期設定/認証、画像BLOBの再起動後サムネイル・詳細表示・削除、保守UI、sandbox境界を確認 |
+| `pnpm run dist:win` | 成功。Windows x64 NSISを生成し、better-sqlite3/argon2をElectron ABIへ再構築 |
+| `corepack pnpm exec playwright test tests/e2e/packaged.spec.ts` | 成功。配布版でSQLiteへ保存した画像の再起動後表示とArgon2id認証を確認 |
+| backup/restore単体 | 成功。schema 7画像行の破損拒否と、画像BLOB・OPENING履歴を含む変更後復元を確認 |
+
+実装中にBrowserWindowの`closed`イベント後で破棄済み`webContents.id`を読む例外を特定した。Window生成時にsender IDを保存し、`closed`処理では保存値を使うよう修正した。修正後の保守・認証E2Eはアプリ終了まで成功した。画像E2Eで最初に使ったPNG fixtureはヘッダー寸法だけが妥当でElectron実デコーダーが拒否したため、CRCを含むPNGを生成するfixtureに置き換えた。これはテストデータの不備で、製品画像処理の変更は不要だった。
+
+`pnpm run check`のラッパーはCorepack実行環境で内部`pnpm`コマンドがPATHにないため実行不可だった。構成要素を直接実行して成功を確認した。Windows 10別実機、署名済みinstaller、更新インストール、昇格後の復旧操作、Windows Excel表示は未検証。0004-05の横断統合ゲートも別途残る。

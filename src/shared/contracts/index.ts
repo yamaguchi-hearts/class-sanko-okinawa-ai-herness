@@ -11,15 +11,20 @@ export type UserSummary = Readonly<{ id: string; loginName: string; displayName:
 export type ProductStatusFilter = 'ACTIVE' | 'INACTIVE' | 'ALL'
 export type ProductStockFilter = 'ALL' | 'LOW' | 'ZERO'
 export type ProductSortKey = 'name' | 'sku' | 'currentStock' | 'reorderLevel'
+export type ProductImageVariant = 'THUMBNAIL' | 'DETAIL'
+export type ProductImageChange = Readonly<{ action: 'KEEP' | 'REMOVE' }> | Readonly<{ action: 'REPLACE'; selectionId: string }>
+export type ProductImageSelection = Readonly<{ selectionId: string; width: number; height: number; previewDataUrl: string }>
+export type ProductImageSelectionResult = Readonly<{ cancelled: true }> | Readonly<{ cancelled: false; selection: ProductImageSelection }>
+export type ProductImageData = Readonly<{ dataUrl: string; updatedAt: string }>
 export type ProductSummary = Readonly<{
   id: string; sku: string; name: string; categoryId: string | null; categoryName: string | null; categoryActive: boolean | null
-  unit: string; currentStock: number; reorderLevel: number; note: string | null; isActive: boolean; createdAt: string; updatedAt: string
+  unit: string; currentStock: number; reorderLevel: number; note: string | null; isActive: boolean; hasImage: boolean; imageUpdatedAt: string | null; createdAt: string; updatedAt: string
 }>
 export type CategorySummary = Readonly<{ id: string; name: string; isActive: boolean }>
 export type Page<T> = Readonly<{ items: readonly T[]; total: number; page: number; pageSize: number }>
 export type ProductDraft = Readonly<{ sku: string; name: string; categoryId: string | null; unit: string; reorderLevel: number; note: string | null }>
-export type CreateProductInput = ProductDraft & Readonly<{ initialStock: number }>
-export type UpdateProductInput = ProductDraft & Readonly<{ productId: string }>
+export type CreateProductInput = ProductDraft & Readonly<{ initialStock: number; imageSelectionId: string | null }>
+export type UpdateProductInput = ProductDraft & Readonly<{ productId: string; imageChange: ProductImageChange }>
 export type ProductListQuery = Readonly<{
   search: string; categoryId: string | null; status: ProductStatusFilter; stockFilter: ProductStockFilter
   sortKey: ProductSortKey; direction: 'asc' | 'desc'; page: number; pageSize: number

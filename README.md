@@ -18,6 +18,8 @@ Plan、設計書、プロンプトは同じ案件の `<ID>-<slug>` で対応づ�
 
 ### 店舗在庫アプリ Phase 0〜3
 
+商品画像はADMINがPNG/JPEGを選び、商品ごとに1枚登録・差替え・削除できます。画像は5MiB以下・各辺4,096px以下のPNGとしてSQLite BLOBへ保存し、STAFFを含む両ロールが閲覧できます。SQLiteバックアップ/復元にも画像が含まれます。ファイルパスはRendererへ公開せず、画像データ自体は暗号化されないためバックアップとDBファイルを適切に保護してください。詳細は[商品画像設計](docs/specs/0004-demo-enhancements/features/product-images.md)を参照してください。
+
 アプリ骨格は TypeScript、React、Electron、electron-vite で構成し、DBと認証ハッシュの検証はMainプロセス内に限定しています。Rendererへ業務DB APIや認証回避口は公開していません。開発・検証コマンド:
 
 固定バージョンはNode.js 24.19.0/pnpm 10.26.1です。WindowsではPython 3とVisual Studio 2022の「Desktop development with C++」ツールチェーンを用意し、x64 Native Tools Command Promptから `pnpm install` を実行してください。postinstallでbetter-sqlite3 とargon2をElectron ABIへ再ビルドします。

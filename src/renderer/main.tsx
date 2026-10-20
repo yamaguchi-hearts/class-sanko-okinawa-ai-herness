@@ -1,7 +1,7 @@
 import '@vitejs/plugin-react/preamble'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import type { AppSettings, BackupCandidate, CategorySummary, DashboardSummary, ProductDraft, ProductListQuery, ProductSummary, SessionView, StockActorOption, StockMovementQuery, StockMovementSummary, UserSummary } from '../shared/contracts'
+import type { AppSettings, BackupCandidate, CategorySummary, DashboardSummary, ProductDraft, ProductImageSelection, ProductListQuery, ProductSummary, SessionView, StockActorOption, StockMovementQuery, StockMovementSummary, UserSummary } from '../shared/contracts'
 import { localDateRangeToUtc } from '../shared/domain/inventory'
 import './style.css'
 
@@ -46,6 +46,12 @@ function App(): React.JSX.Element {
   const [savingStock, setSavingStock] = useState(false)
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [restoreCandidate, setRestoreCandidate] = useState<BackupCandidate | null>(null)
+  const [productThumbnails, setProductThumbnails] = useState<Record<string, { updatedAt: string; dataUrl: string }>>({})
+  const productThumbnailCache = useRef<Record<string, { updatedAt: string; dataUrl: string }>>({})
+  const [detailImage, setDetailImage] = useState<{ product: ProductSummary; dataUrl: string } | null>(null)
+  const [imageSelection, setImageSelection] = useState<ProductImageSelection | null>(null)
+  const [imageRemovalPending, setImageRemovalPending] = useState(false)
+  const [editorExistingImage, setEditorExistingImage] = useState<{ productId: string; dataUrl: string } | null>(null)
 
   const refresh = useCallback(async () => {
     const setup = await window.storeApp.setup.isRequired()
@@ -107,6 +113,38 @@ function App(): React.JSX.Element {
     void window.storeApp.settings.get().then((r) => { if (r.ok) setSettings(r.value); else setError(r.error.message) })
   }, [tab, session?.user.role])
   useEffect(() => {
+    let active = true
+    if (tab !== 'products' || session?.state !== 'AUTHENTICATED') {
+      productThumbnailCache.current = {}
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Discard protected image data immediately when leaving the product view.
+      setProductThumbnails({}); setDetailImage(null)
+      return () => { active = false }
+    }
+    const visible = products.filter((product) => product.hasImage && product.imageUpdatedAt)
+    const visibleIds = new Set(visible.map((product) => product.id))
+    const retained = Object.fromEntries(Object.entries(productThumbnailCache.current).filter(([id, image]) => visibleIds.has(id) && visible.find((product) => product.id === id)?.imageUpdatedAt === image.updatedAt))
+    productThumbnailCache.current = retained; setProductThumbnails(retained)
+    const pending = visible.filter((product) => retained[product.id]?.updatedAt !== product.imageUpdatedAt)
+    let nextIndex = 0
+    const load = async () => {
+      while (active && nextIndex < pending.length) {
+        const product = pending[nextIndex++]!
+        const result = await window.storeApp.productImages.get(product.id, 'THUMBNAIL')
+        if (active && result.ok && result.value && result.value.updatedAt === product.imageUpdatedAt) {
+          const next = { ...productThumbnailCache.current, [product.id]: { updatedAt: result.value.updatedAt, dataUrl: result.value.dataUrl } }
+          productThumbnailCache.current = next; setProductThumbnails(next)
+        }
+      }
+    }
+    void Promise.all(Array.from({ length: Math.min(4, pending.length) }, () => load()))
+    return () => { active = false }
+  }, [tab, session?.state, session?.user.id, products])
+  useEffect(() => {
+    if (session?.state === 'AUTHENTICATED') return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Remove selection previews when the authenticated session is locked or revoked.
+    setImageSelection(null); setImageRemovalPending(false); setEditorExistingImage(null)
+  }, [session?.state, session?.user.id])
+  useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Shared IPC history loading preserves the query loading indicator.
     if (session?.state === 'AUTHENTICATED' && tab === 'history') void refreshMovements(movementQuery)
   }, [session?.state, session?.user.id, tab, movementQuery, refreshMovements])
@@ -119,11 +157,38 @@ function App(): React.JSX.Element {
   }
   const showError = (result: { ok: boolean; error?: { message: string } }) => { if (!result.ok) setError(result.error?.message ?? '処理を完了できませんでした。') }
   const logout = () => { setIssuedCode(''); setSession(null); void window.storeApp.auth.logout() }
-  const startProductCreate = () => { setEditProductId(null); setProductDraft(blankProduct); setProductFormOpen(true); setError('') }
+  const startProductCreate = () => {
+    if (imageSelection) void window.storeApp.productImages.discardSelection(imageSelection.selectionId)
+    setImageSelection(null); setImageRemovalPending(false); setEditorExistingImage(null)
+    setEditProductId(null); setProductDraft(blankProduct); setProductFormOpen(true); setError('')
+  }
   const startProductEdit = (product: ProductSummary) => {
+    if (imageSelection) void window.storeApp.productImages.discardSelection(imageSelection.selectionId)
+    setImageSelection(null); setImageRemovalPending(false); setEditorExistingImage(null)
     setEditProductId(product.id)
     setProductDraft({ sku: product.sku, name: product.name, categoryId: product.categoryId, unit: product.unit, reorderLevel: product.reorderLevel, note: product.note })
     setProductFormOpen(true); setError('')
+    if (product.hasImage) void window.storeApp.productImages.get(product.id, 'DETAIL').then((result) => {
+      if (result.ok && result.value) setEditorExistingImage({ productId: product.id, dataUrl: result.value.dataUrl })
+    })
+  }
+  const selectProductImage = async () => {
+    const result = await window.storeApp.productImages.select()
+    if (!result.ok) { showError(result); return }
+    if (result.value.cancelled) return
+    setImageSelection(result.value.selection); setImageRemovalPending(false)
+  }
+  const discardProductImageSelection = () => {
+    if (imageSelection) void window.storeApp.productImages.discardSelection(imageSelection.selectionId)
+    setImageSelection(null)
+  }
+  const cancelProductForm = () => {
+    discardProductImageSelection(); setImageRemovalPending(false); setEditorExistingImage(null); setProductFormOpen(false)
+  }
+  const showProductImage = async (product: ProductSummary) => {
+    const result = await window.storeApp.productImages.get(product.id, 'DETAIL')
+    if (!result.ok) { showError(result); return }
+    if (result.value) setDetailImage({ product, dataUrl: result.value.dataUrl })
   }
   const saveProduct = async (form: FormData) => {
     const draft: ProductDraft = {
@@ -131,9 +196,10 @@ function App(): React.JSX.Element {
       unit: String(form.get('unit') ?? ''), reorderLevel: Number(form.get('reorderLevel') ?? 0), note: String(form.get('note') ?? '') || null
     }
     const result = editProductId
-      ? await window.storeApp.products.update({ ...draft, productId: editProductId })
-      : await window.storeApp.products.create({ ...draft, initialStock: Number(form.get('initialStock') ?? 0) })
+      ? await window.storeApp.products.update({ ...draft, productId: editProductId, imageChange: imageSelection ? { action: 'REPLACE', selectionId: imageSelection.selectionId } : imageRemovalPending ? { action: 'REMOVE' } : { action: 'KEEP' } })
+      : await window.storeApp.products.create({ ...draft, initialStock: Number(form.get('initialStock') ?? 0), imageSelectionId: imageSelection?.selectionId ?? null })
     if (!result.ok) { showError(result); return }
+    setImageSelection(null); setImageRemovalPending(false); setEditorExistingImage(null)
     setProductFormOpen(false); setNotice(editProductId ? '商品を更新しました。' : '商品を登録しました。')
     await refreshProducts()
   }
@@ -199,8 +265,8 @@ function App(): React.JSX.Element {
       {tab === 'dashboard' && <section><header className="section-heading"><div><h1>ダッシュボード</h1><p>登録商品は全件、有効商品数と在庫警告は有効商品のみを集計しています。</p></div></header>{dashboard ? <><div className="stats"><article><span>登録商品数（無効含む）</span><strong>{dashboard.registeredProductCount}</strong></article><article><span>有効商品数</span><strong>{dashboard.activeProductCount}</strong></article><button className="stat-button" onClick={() => { updateQuery({ stockFilter: 'LOW' }); setTab('products') }}><span>低在庫商品</span><strong>{dashboard.lowStockProductCount}</strong></button><button className="stat-button" onClick={() => { updateQuery({ stockFilter: 'ZERO' }); setTab('products') }}><span>在庫0商品</span><strong>{dashboard.zeroStockProductCount}</strong></button></div><h2>直近の在庫変更（最大10件）</h2>{dashboard.recentMovements.length ? <MovementTable items={[...dashboard.recentMovements]} onHistory={(m) => { setHistoryProduct(m.productId); setMovementQuery({ ...initialMovementQuery, productId: m.productId }); setTab('history') }} /> : <p className="empty">在庫変更の記録はありません。</p>}</> : <p role="status">集計を読み込んでいます…</p>}</section>}
       {tab === 'products' && <section><header className="section-heading"><div><h1>商品一覧</h1><p>登録商品数: {productTotal}</p></div><div className="actions">{session.user.role === 'ADMIN' && <button onClick={startProductCreate}>商品を登録</button>}<button className="secondary" onClick={async () => { const r = await window.storeApp.data.exportProducts(query); if (r.ok) setNotice(r.value.cancelled ? 'CSV出力をキャンセルしました。' : `${r.value.count ?? 0}件をCSVへ出力しました。`); else showError(r) }}>条件一致をCSV出力</button></div></header>
         <div className="filters"><label>SKU・商品名検索<input value={query.search} onChange={(e) => updateQuery({ search: e.target.value })} maxLength={200} placeholder="検索語" /></label><label>カテゴリ<select value={query.categoryId ?? ''} onChange={(e) => updateQuery({ categoryId: e.target.value || null })}><option value="">すべて</option>{categories.filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>状態<select value={query.status} onChange={(e) => updateQuery({ status: e.target.value as ProductListQuery['status'] })}><option value="ACTIVE">有効</option><option value="INACTIVE">無効</option><option value="ALL">すべて</option></select></label><label>並び順<select value={query.sortKey} onChange={(e) => updateQuery({ sortKey: e.target.value as ProductListQuery['sortKey'] })}><option value="name">商品名</option><option value="sku">SKU</option><option value="currentStock">現在庫</option><option value="reorderLevel">最低在庫</option></select></label><label>方向<select value={query.direction} onChange={(e) => updateQuery({ direction: e.target.value as ProductListQuery['direction'] })}><option value="asc">昇順</option><option value="desc">降順</option></select></label><label>在庫条件<select value={query.stockFilter} onChange={(e) => updateQuery({ stockFilter: e.target.value as ProductListQuery['stockFilter'] })}><option value="ALL">すべて</option><option value="LOW">低在庫</option><option value="ZERO">在庫0</option></select></label></div>
-        {productFormOpen && session.user.role === 'ADMIN' && <form className="editor" onSubmit={(e) => void onSubmit(e, saveProduct)}><h2>{editProductId ? '商品を編集' : '商品を登録'}</h2><div className="form-grid"><label>SKU<input name="sku" required maxLength={64} pattern="[A-Za-z0-9_-]+" value={productDraft.sku} onChange={(e) => setProductDraft({ ...productDraft, sku: e.target.value })} /></label><label>商品名<input name="name" required maxLength={200} value={productDraft.name} onChange={(e) => setProductDraft({ ...productDraft, name: e.target.value })} /></label><label>カテゴリ<select name="categoryId" value={productDraft.categoryId ?? ''} onChange={(e) => setProductDraft({ ...productDraft, categoryId: e.target.value || null })}><option value="">未分類</option>{categories.filter((c) => c.isActive || (editProductId && c.id === productDraft.categoryId)).map((c) => <option key={c.id} value={c.id}>{c.name}{c.isActive ? '' : '（無効・既存）'}</option>)}</select></label><label>単位<input name="unit" required maxLength={16} value={productDraft.unit} onChange={(e) => setProductDraft({ ...productDraft, unit: e.target.value })} /></label><label>最低在庫数<input name="reorderLevel" type="number" required min={0} max={2147483647} value={productDraft.reorderLevel} onChange={(e) => setProductDraft({ ...productDraft, reorderLevel: Number(e.target.value) })} /></label>{!editProductId && <label>初期在庫数<input name="initialStock" type="number" required min={0} max={2147483647} step={1} defaultValue={0} /></label>}<label>メモ<textarea name="note" maxLength={2000} value={productDraft.note ?? ''} onChange={(e) => setProductDraft({ ...productDraft, note: e.target.value || null })} /></label></div><p className="hint">初期在庫は新規登録時だけ設定できます。登録後の調整は在庫変更から行ってください。</p><div className="actions"><button>{editProductId ? '変更を保存' : '登録'}</button><button type="button" className="secondary" onClick={() => setProductFormOpen(false)}>キャンセル</button></div></form>}
-        {loadingProducts ? <p role="status">商品を読み込んでいます…</p> : products.length === 0 ? <p className="empty">条件に一致する商品はありません。</p> : <div className="table-wrap"><table><thead><tr><th>SKU</th><th>商品名</th><th>カテゴリ</th><th>在庫</th><th>在庫状態</th><th>最低在庫</th><th>単位</th><th>状態</th><th>操作</th></tr></thead><tbody>{products.map((p) => <tr key={p.id}><td>{p.sku}</td><td>{p.name}</td><td>{p.categoryName ?? '未分類'}{p.categoryActive === false && <small>（無効カテゴリ）</small>}</td><td>{p.currentStock}</td><td>{p.currentStock === 0 ? `在庫0${p.reorderLevel > 0 ? '・低在庫' : ''}` : p.reorderLevel > 0 && p.currentStock <= p.reorderLevel ? '低在庫' : '通常'}</td><td>{p.reorderLevel}</td><td>{p.unit}</td><td>{p.isActive ? '有効' : '無効'}</td><td><button className="small secondary" disabled={!p.isActive} onClick={() => openStock(p)}>在庫変更</button><button className="small secondary" onClick={() => openProductHistory(p)}>履歴</button>{session.user.role === 'ADMIN' && <><button className="small secondary" onClick={() => startProductEdit(p)}>編集</button>{p.isActive && <button className="small secondary" onClick={async () => { if (!window.confirm(`「${p.name}」を無効化しますか？商品情報と履歴は保持されます。`)) return; const r = await window.storeApp.products.deactivate(p.id); if (r.ok) await refreshProducts(); else showError(r) }}>無効化</button>}</>}</td></tr>)}</tbody></table></div>}
+        {productFormOpen && session.user.role === 'ADMIN' && <form className="editor" onSubmit={(e) => void onSubmit(e, saveProduct)}><h2>{editProductId ? '商品を編集' : '商品を登録'}</h2><div className="form-grid"><label>SKU<input name="sku" required maxLength={64} pattern="[A-Za-z0-9_-]+" value={productDraft.sku} onChange={(e) => setProductDraft({ ...productDraft, sku: e.target.value })} /></label><label>商品名<input name="name" required maxLength={200} value={productDraft.name} onChange={(e) => setProductDraft({ ...productDraft, name: e.target.value })} /></label><label>カテゴリ<select name="categoryId" value={productDraft.categoryId ?? ''} onChange={(e) => setProductDraft({ ...productDraft, categoryId: e.target.value || null })}><option value="">未分類</option>{categories.filter((c) => c.isActive || (editProductId && c.id === productDraft.categoryId)).map((c) => <option key={c.id} value={c.id}>{c.name}{c.isActive ? '' : '（無効・既存）'}</option>)}</select></label><label>単位<input name="unit" required maxLength={16} value={productDraft.unit} onChange={(e) => setProductDraft({ ...productDraft, unit: e.target.value })} /></label><label>最低在庫数<input name="reorderLevel" type="number" required min={0} max={2147483647} value={productDraft.reorderLevel} onChange={(e) => setProductDraft({ ...productDraft, reorderLevel: Number(e.target.value) })} /></label>{!editProductId && <label>初期在庫数<input name="initialStock" type="number" required min={0} max={2147483647} step={1} defaultValue={0} /></label>}<label>メモ<textarea name="note" maxLength={2000} value={productDraft.note ?? ''} onChange={(e) => setProductDraft({ ...productDraft, note: e.target.value || null })} /></label></div><div className="product-image-editor"><div className="product-image-preview">{imageSelection ? <img src={imageSelection.previewDataUrl} alt={productDraft.name || '選択した商品画像'} /> : editProductId && !imageRemovalPending && products.find((product) => product.id === editProductId)?.hasImage ? editorExistingImage?.productId === editProductId ? <img src={editorExistingImage.dataUrl} alt={productDraft.name} /> : <span role="status">画像を読み込んでいます…</span> : <span>画像なし</span>}</div><div className="product-image-actions"><button type="button" className="secondary" onClick={() => void selectProductImage()}>画像を選択</button>{imageSelection && <button type="button" className="secondary" onClick={discardProductImageSelection}>選択画像を解除</button>}{editProductId && products.find((product) => product.id === editProductId)?.hasImage && (imageRemovalPending ? <button type="button" className="secondary" onClick={() => setImageRemovalPending(false)}>削除を取り消す</button> : <button type="button" className="secondary" onClick={() => { discardProductImageSelection(); setImageRemovalPending(true) }}>登録画像を削除</button>)}</div></div><p className="hint">画像はPNG/JPEGから選択できます。初期在庫は新規登録時だけ設定できます。</p><div className="actions"><button>{editProductId ? '変更を保存' : '登録'}</button><button type="button" className="secondary" onClick={cancelProductForm}>キャンセル</button></div></form>}
+        {loadingProducts ? <p role="status">商品を読み込んでいます…</p> : products.length === 0 ? <p className="empty">条件に一致する商品はありません。</p> : <div className="table-wrap"><table><thead><tr><th>画像</th><th>SKU</th><th>商品名</th><th>カテゴリ</th><th>在庫</th><th>在庫状態</th><th>最低在庫</th><th>単位</th><th>状態</th><th>操作</th></tr></thead><tbody>{products.map((p) => <tr key={p.id}><td>{p.hasImage && p.imageUpdatedAt ? productThumbnails[p.id]?.updatedAt === p.imageUpdatedAt ? <button type="button" className="product-thumbnail-button" aria-label={`${p.name}の商品画像を拡大表示`} onClick={() => void showProductImage(p)}><img src={productThumbnails[p.id]!.dataUrl} alt={p.name} /></button> : <span className="product-image-empty" role="status">読込中</span> : <span className="product-image-empty" aria-label={`${p.name}の画像なし`}>画像なし</span>}</td><td>{p.sku}</td><td>{p.name}</td><td>{p.categoryName ?? '未分類'}{p.categoryActive === false && <small>（無効カテゴリ）</small>}</td><td>{p.currentStock}</td><td>{p.currentStock === 0 ? `在庫0${p.reorderLevel > 0 ? '・低在庫' : ''}` : p.reorderLevel > 0 && p.currentStock <= p.reorderLevel ? '低在庫' : '通常'}</td><td>{p.reorderLevel}</td><td>{p.unit}</td><td>{p.isActive ? '有効' : '無効'}</td><td><button className="small secondary" disabled={!p.isActive} onClick={() => openStock(p)}>在庫変更</button><button className="small secondary" onClick={() => openProductHistory(p)}>履歴</button>{session.user.role === 'ADMIN' && <><button className="small secondary" onClick={() => startProductEdit(p)}>編集</button>{p.isActive && <button className="small secondary" onClick={async () => { if (!window.confirm(`「${p.name}」を無効化しますか？商品情報と履歴は保持されます。`)) return; const r = await window.storeApp.products.deactivate(p.id); if (r.ok) await refreshProducts(); else showError(r) }}>無効化</button>}</>}</td></tr>)}</tbody></table></div>}
         <div className="pager"><span>{productTotal === 0 ? 0 : (query.page - 1) * query.pageSize + 1}–{Math.min(query.page * query.pageSize, productTotal)} / {productTotal}</span><button className="secondary" disabled={query.page <= 1} onClick={() => setQuery({ ...query, page: query.page - 1 })}>前へ</button><span>ページ {query.page}</span><button className="secondary" disabled={query.page * query.pageSize >= productTotal} onClick={() => setQuery({ ...query, page: query.page + 1 })}>次へ</button></div>
       </section>}
 
@@ -222,6 +288,7 @@ function App(): React.JSX.Element {
       {tab === 'settings' && session.user.role === 'ADMIN' && <section><h1>店舗設定</h1>{settings && <form onSubmit={(e) => void onSubmit(e, async (f) => { const r = await window.storeApp.settings.update({ storeName: String(f.get('storeName') ?? ''), idleLockMinutes: Number(f.get('idleLockMinutes')) }); if (r.ok) { setSettings(r.value); setNotice('設定を保存しました。ロック時間の短縮はすぐ反映されます。') } else showError(r) })}><label>店舗名<input name="storeName" defaultValue={settings.storeName} required maxLength={100} /></label><label>無操作ロック（分）<input name="idleLockMinutes" type="number" min="1" max="60" step="1" defaultValue={settings.idleLockMinutes} required /></label><p>データベース保存先（読取専用）</p><code>{settings.databasePath}</code><button>設定を保存</button></form>}</section>}
       {tab === 'data' && session.user.role === 'ADMIN' && <section><h1>バックアップ・復元</h1><p>バックアップにはユーザー情報も含まれ、暗号化されません。別媒体へ保管してください。</p><div className="actions"><button onClick={async () => { const r = await window.storeApp.data.createBackup(); if (r.ok) setNotice(r.value.cancelled ? 'バックアップをキャンセルしました。' : `バックアップを作成しました: ${r.value.path ?? ''}`); else showError(r) }}>バックアップを作成</button><button className="secondary" onClick={async () => { const r = await window.storeApp.data.inspectRestore(); if (!r.ok) showError(r); else if (!r.value.cancelled) setRestoreCandidate(r.value.candidate ?? null) }}>復元候補を検査</button></div>{restoreCandidate && <form className="editor" onSubmit={(e) => void onSubmit(e, async (f) => { if (!window.confirm(`現在のデータを置き換え、復元後に再起動します。店舗「${restoreCandidate.storeName}」のデータへ復元しますか？`)) return; const r = await window.storeApp.data.applyRestore({ candidateId: restoreCandidate.candidateId, confirmation: String(f.get('confirmation') ?? ''), password: String(f.get('password') ?? '') }); if (r.ok) setNotice('cancelled' in r.value ? '復元をキャンセルしました。' : '復元しました。アプリを再起動しています。'); else showError(r) })}><h2>候補の確認</h2><p>店舗: {restoreCandidate.storeName} / 作成: {restoreCandidate.createdAt ? new Date(restoreCandidate.createdAt).toLocaleString() : '不明'} / schema v{restoreCandidate.schemaVersion} / ユーザー {restoreCandidate.userCount} / 商品 {restoreCandidate.productCount}</p><label>確認のため店舗名を入力<input name="confirmation" required /></label><label>現在のADMINパスワード<input name="password" type="password" required autoComplete="current-password" /></label><button>再認可して復元</button></form>}</section>}
       {passwordFormOpen && <section className="editor"><h2>自分のパスワードを変更</h2><form onSubmit={(e) => void onSubmit(e, async (f) => { const r = await window.storeApp.auth.changeOwnPassword({ currentPassword: String(f.get('currentPassword') ?? ''), newPassword: String(f.get('newPassword') ?? ''), confirmPassword: String(f.get('confirmPassword') ?? '') }); if (r.ok) { setSession(null); setPasswordFormOpen(false); setNotice('変更しました。新しいパスワードでログインしてください。') } else showError(r) })}><label>現在のパスワード<input name="currentPassword" required type="password" autoComplete="current-password" /></label><label>新しいパスワード（4〜128文字）<input name="newPassword" required type="password" autoComplete="new-password" /></label><label>確認入力<input name="confirmPassword" required type="password" autoComplete="new-password" /></label><p className="hint">DEMO版では新しく設定するパスワードを4〜128 Unicodeコードポイントで設定できます。</p><div className="actions"><button>変更する</button><button type="button" className="secondary" onClick={() => setPasswordFormOpen(false)}>キャンセル</button></div></form></section>}
+      {detailImage && <div className="product-image-modal" role="dialog" aria-modal="true" aria-label={`${detailImage.product.name}の商品画像`} onClick={() => setDetailImage(null)}><button type="button" className="secondary" aria-label="画像を閉じる" onClick={() => setDetailImage(null)}>閉じる</button><img src={detailImage.dataUrl} alt={detailImage.product.name} onClick={(event) => event.stopPropagation()} /></div>}
       <footer className="page-footer"><button className="link" onClick={() => setPasswordFormOpen(!passwordFormOpen)}>自分のパスワードを変更</button></footer>
       {notice && <p className="notice" role="status">{notice}{issuedCode && <button className="secondary" onClick={() => { void navigator.clipboard?.writeText(issuedCode); setNotice('再設定コードをクリップボードへコピーしました。') }}>コードをコピー</button>}<button type="button" className="link" onClick={() => { setNotice(''); setIssuedCode('') }}>閉じる</button></p>}{error && <p role="alert" className="error">{error}</p>}
     </section>

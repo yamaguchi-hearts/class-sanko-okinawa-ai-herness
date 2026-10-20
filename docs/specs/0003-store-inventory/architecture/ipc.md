@@ -22,6 +22,9 @@
 | `auth.reportActivity` | 引数なし、Mainの最終操作時刻更新 | 通常セッション、検証済み操作通知のみ |
 | `products.list` | 検索・フィルタ・ソート・page/pageSize→Page | 両ロール |
 | `products.create/update/deactivate` | 商品DTO。現在庫を受け取らない | ADMIN |
+| `productImages.select` | MainのファイルダイアログからPNG/JPEGを選択→取消または選択ID/寸法/PNGプレビュー | ADMIN |
+| `productImages.discardSelection` | 同一sender・本人の保留selectionIdを破棄 | ADMIN |
+| `productImages.get` | productIdとTHUMBNAIL/DETAIL→nullまたはPNGデータURL/updatedAt | 両ロール |
 | `stock.record` | 種別、商品ID、数量または実数、理由、メモ→最新在庫・movement | 両ロール |
 | `stock.list` | 商品、期間、種別、実行者、ページ→Page | 両ロール |
 | `stock.getDashboard` | 集計・直近履歴→DashboardSummary | 両ロール |
@@ -47,7 +50,7 @@ RecordStockMovementInputはRECEIPT/ISSUEなら正の `quantity`、ADJUSTMENTな�
 
 ### 保守・ファイル操作
 
-パスはMainのネイティブダイアログで選ぶ。復元は選択→候補検査→Main内の一時選択ID発行→UI確認→再認可→適用とし、RendererはIDと確認意図だけを返す。適用直前に候補内容を再検証し、差替えを防ぐ。キャンセルは正常な `cancelled` 結果とする。生の絶対パスを任意入力させない。
+パスはMainのネイティブダイアログで選ぶ。画像も復元もRendererに任意パスを渡さない。画像候補は10分の短命IDとしてsender・本人セッションに結び、商品保存直前に再検証して成功後に消費する。画像選択取消は正常な`cancelled`結果とする。復元は選択→候補検査→Main内の一時選択ID発行→UI確認→再認可→適用とし、RendererはIDと確認意図だけを返す。適用直前に候補内容を再検証し、差替えを防ぐ。復元ダイアログのキャンセルも正常な`cancelled`結果とする。
 
 ### 結果とエラー
 

@@ -31,6 +31,7 @@
   "dependencies": {
     "argon2": "0.45.1",
     "better-sqlite3": "13.0.3",
+    "image-size": "2.0.4",
     "proper-lockfile": "4.1.2",
     "react": "19.3.1",
     "react-dom": "19.3.1"
