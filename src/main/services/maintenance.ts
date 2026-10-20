@@ -11,6 +11,7 @@ import { migrations } from '../db/migrations'
 import { CatalogRepository } from '../db/repositories/catalog'
 import { AuthService, AppError } from '../auth/service'
 import { audit, type AuditActor } from './audit'
+import { isStoredPngConsistent } from './product-images'
 
 const APP_ID = 'jp.co.sanko-okinawa.store-inventory'
 const CSV_HEADERS = ['SKU', '商品名', 'カテゴリ', '現在庫', '最低在庫数', '単位', '状態', 'メモ'] as const
@@ -270,7 +271,9 @@ export class MaintenanceService {
     if (Number((db.prepare("SELECT COUNT(*) n FROM users WHERE role='ADMIN' AND is_active=1").get() as {n:number}).n) < 1) throw new Error('no active admin')
     if (Number((db.prepare('SELECT COUNT(*) n FROM products WHERE current_stock<0 OR current_stock>2147483647').get() as {n:number}).n)) throw new Error('stock invariant')
     if (Number((db.prepare('SELECT COUNT(*) n FROM stock_movements WHERE stock_after<>stock_before+quantity_delta').get() as {n:number}).n)) throw new Error('movement invariant')
-    if (Number((db.prepare("SELECT COUNT(*) n FROM product_images WHERE typeof(content)<>'blob' OR length(content)<1 OR length(content)>5242880 OR mime_type<>'image/png' OR width<1 OR width>4096 OR height<1 OR height>4096").get() as {n:number}).n)) throw new Error('image invariant')
+    const invalidImages = db.prepare("SELECT content,width,height FROM product_images WHERE typeof(content)<>'blob' OR length(content)<1 OR length(content)>5242880 OR mime_type<>'image/png' OR width<1 OR width>4096 OR height<1 OR height>4096").all() as Array<{ content: Buffer; width: number; height: number }>
+    const inconsistentImage = (db.prepare('SELECT content,width,height FROM product_images').all() as Array<{ content: Buffer; width: number; height: number }>).some((image) => !isStoredPngConsistent(Buffer.from(image.content), image.width, image.height))
+    if (invalidImages.length || inconsistentImage) throw new Error('image invariant')
   }
 }
 

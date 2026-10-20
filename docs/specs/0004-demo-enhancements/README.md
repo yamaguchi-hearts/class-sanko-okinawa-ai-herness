@@ -5,7 +5,7 @@
 - [Plan](../../plans/0004-demo-enhancements.md)
 - [基本設計0003](../0003-store-inventory/README.md)
 - [実装プロンプト](../../prompts/0004-demo-enhancements/README.md)
-- 状態: pnpm移行、ESLint設定、DEMOパスワード、初期在庫、商品画像を実装済み。TypeScript 6.0.3へ固定し、型検査・単体テスト・ビルド・lint・E2E一部を検証済み。Windows配布と画像操作の実機検証は未完了。
+- 状態: pnpm移行、ESLint設定、DEMOパスワード、初期在庫、商品画像を実装済み。TypeScript 6.0.3へ固定し、型検査・単体テスト・ビルド・lint・開発版/配布版E2E・NSIS/復旧exe生成を検証済み。実ファイル選択を含む画像UI E2E、更新導入、Windows/Excel/昇格復旧の実機検証は未完了。
 
 ## 要求対応
 

@@ -37,6 +37,11 @@ function headerDimensions(content: Buffer): { width: number; height: number } | 
   return jpegDimensions(content)
 }
 
+export function isStoredPngConsistent(content: Buffer, width: number, height: number): boolean {
+  if (!content.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE) || content.length < 24 || content.toString('ascii', 12, 16) !== 'IHDR') return false
+  return content.readUInt32BE(16) === width && content.readUInt32BE(20) === height
+}
+
 function selectionId(value: string): boolean { return /^[0-9a-f-]{36}$/i.test(value) }
 
 export class ProductImagesService {

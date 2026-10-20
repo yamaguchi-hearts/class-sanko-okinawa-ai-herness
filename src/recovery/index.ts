@@ -12,6 +12,7 @@ import { issueResetCode } from '../main/auth/reset-code'
 import { auditOfflineRecovery } from '../main/services/audit'
 import { openStoreDatabase } from '../main/db/connection'
 import { migrations } from '../main/db/migrations'
+import { isStoredPngConsistent } from '../main/services/product-images'
 
 const APP_ID = 'jp.co.sanko-okinawa.store-inventory'
 const latestSchema = migrations.at(-1)?.version ?? 0
@@ -35,6 +36,8 @@ function validate(db: Database.Database): void {
   if (!auditColumns.has('actor_kind') || !db.prepare("SELECT 1 FROM app_meta WHERE key='setup_completed_at'").get() || !db.prepare("SELECT 1 FROM app_meta WHERE key='store_name'").get()) throw new Error('アプリの必須情報が不足しています。')
   if ((db.pragma('integrity_check') as Array<{integrity_check:string}>)[0]?.integrity_check !== 'ok' || (db.pragma('foreign_key_check') as unknown[]).length) throw new Error('データベースの整合性検査に失敗しました。')
   if (Number((db.prepare('SELECT COUNT(*) n FROM stock_movements WHERE stock_after<>stock_before+quantity_delta').get() as {n:number}).n)) throw new Error('在庫履歴の整合性検査に失敗しました。')
+  const images = db.prepare('SELECT content,width,height FROM product_images').all() as Array<{ content: Buffer; width: number; height: number }>
+  if (images.some((image) => !isStoredPngConsistent(Buffer.from(image.content), image.width, image.height))) throw new Error('商品画像の整合性検査に失敗しました。')
 }
 function storeName(db: Database.Database): string { return (db.prepare("SELECT value FROM app_meta WHERE key='store_name'").get() as {value:string}|undefined)?.value ?? '' }
 function installationId(db: Database.Database): string { return (db.prepare("SELECT value FROM app_meta WHERE key='installation_id'").get() as {value:string}|undefined)?.value ?? '不明' }

@@ -14,7 +14,7 @@ docs/
 
 Plan、設計書、プロンプトは同じ案件の `<ID>-<slug>` で対応づけます。単一文書は `.md`、機能・要求別に分割する案件は同名ディレクトリの `README.md` を索引にします。まず管理者のPlanを記録し、設計書とプロンプトを作成します。重要な不明点を解消してから実装へ引き継ぎます。各作業の完了時には対象の変更を自動コミットします。
 
-アプリの基本Planは [店舗向け商品在庫管理](docs/plans/0003-store-inventory.md) です。[DEMO差分・pnpm・ESLintのPlan](docs/plans/0004-demo-enhancements.md) と [リリース・ハーネスPlan](docs/plans/0005-release-harness.md) をあわせて参照してください。Plan全体の対応関係は [Plan一覧](docs/plans/README.md)、機能・要求別の設計と実装引き継ぎは [設計索引](docs/specs/0003-store-inventory/README.md) と [実装プロンプト索引](docs/prompts/0003-store-inventory/README.md) にあります。Phase 0〜4の基盤、認証、商品・カテゴリ・ユーザー管理、在庫変更・履歴、CSV、設定、バックアップ/復元、Windows管理者復旧ツールを実装しています。0004ではpnpm移行、TypeScript 6.0.3への固定、ESLint設定、DEMOパスワード、初期在庫、商品画像を実装済みです。Windows配布・画像操作の実機検証は未完了です。
+アプリの基本Planは [店舗向け商品在庫管理](docs/plans/0003-store-inventory.md) です。[DEMO差分・pnpm・ESLintのPlan](docs/plans/0004-demo-enhancements.md) と [リリース・ハーネスPlan](docs/plans/0005-release-harness.md) をあわせて参照してください。Plan全体の対応関係は [Plan一覧](docs/plans/README.md)、機能・要求別の設計と実装引き継ぎは [設計索引](docs/specs/0003-store-inventory/README.md) と [実装プロンプト索引](docs/prompts/0003-store-inventory/README.md) にあります。Phase 0〜4の基盤、認証、商品・カテゴリ・ユーザー管理、在庫変更・履歴、CSV、設定、バックアップ/復元、Windows管理者復旧ツールを実装しています。0004ではpnpm移行、TypeScript 6.0.3への固定、ESLint設定、DEMOパスワード、初期在庫、商品画像、商品の再有効化を実装済みです。型検査・単体/DBテスト・ビルド・lint・開発版/配布版E2E・Windows配布候補生成を検証済みです。実ファイル選択を含む画像UI、更新導入、Windows/Excel/昇格復旧の実機検証は未完了です。
 
 ### 店舗在庫アプリ Phase 0〜3
 

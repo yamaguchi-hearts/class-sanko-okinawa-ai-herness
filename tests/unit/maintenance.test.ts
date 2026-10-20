@@ -81,6 +81,18 @@ describe('CSV/settings/backup maintenance', () => {
     expect(auth.getSession(4)?.state).toBe('LOCKED')
   })
 
+  it('rejects a backup containing a product image whose PNG header disagrees with its dimensions', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'inventory-maintenance-image-'))
+    db = openStoreDatabase(join(dir, 'store.sqlite'))
+    const auth = new AuthService(db)
+    const catalog = new CatalogService(db, auth)
+    const admin = await auth.setup({ storeName: '画像検査', displayName: '管理者', loginName: 'admin', password: 'maintenance image password' }, 4)
+    const product = catalog.createProduct(admin.token, 4, { sku: 'IMAGE-CHECK', name: '画像検査商品', categoryId: null, unit: '個', reorderLevel: 0, note: null, initialStock: 0, imageSelectionId: null })
+    db.prepare('INSERT INTO product_images(product_id,content,mime_type,width,height,updated_at) VALUES(?,?,?,?,?,?)').run(product.id, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), 'image/png', 1, 1, new Date().toISOString())
+    const service = new MaintenanceService(db, auth, dir, join(dir, 'store.sqlite'))
+    await expect(service.createBackup(admin.token, 4, join(dir, 'invalid-image.sqlite3'))).rejects.toThrowError(AppError)
+  })
+
   it('rejects a non-app SQLite restore candidate without touching the open database', async () => {
     dir = mkdtempSync(join(tmpdir(), 'inventory-maintenance-'))
     db = openStoreDatabase(join(dir, 'store.sqlite'))
