@@ -28,16 +28,39 @@
 | D-18 | バックアップ単体はSQLite、識別/スキーマはDB内メタデータ | 別アプリDBを拒否し、単一ファイルで運用可能にする |
 | D-19 | トークン期限は無操作期限と同一、本人操作だけで延長 | ロック設定より早い意図しない失効と並行呼び出しのローテーション競合を避ける |
 | D-20 | 商品名の正規化検索キーをDBへ追加 | Unicode大小文字の検索をSQLite NOCASEだけに依存させない |
+| D-21 | アプリIDは `jp.co.sanko-okinawa.store-inventory`、表示名/既定userData名は「沖縄店舗在庫管理」 | electron-builderの安定識別子と、Windowsのユーザー別AppData配置をPhase 0で固定 |
+| D-22 | MainはuserDataディレクトリを `proper-lockfile` で排他し、stale 15秒・更新5秒とする。復旧ツールも同じロックを取得し、アプリ終了中だけ操作する | OS間で共有できるロックファイル方式を採用。SQLite自身の書込みロックだけに保守作業の排他を依存しない |
+| D-23 | 復旧ツールはPhase 4でアプリと別のWindows x64ポータブル実行ファイルとして配布し、Windows管理者昇格を要求する。共通DBサービス/ロック規約を共有する | 通常アプリに復旧バックドアを置かず、オフライン保守の実行と通常業務を分離 |
+| D-24 | 内部トークンはMainから認証IPC応答としてPreloadへ返し、Preloadクロージャ内だけに保持する。Preloadの用途別ラッパーが各保護呼出しへ付与し、Rendererには返さない | Rendererのlocal/session storageと汎用IPCを使わず、設計済みのMain→Preload境界に限定 |
+| D-25 | Main内で無操作期限とトークン期限を同じ期限値で管理し、検証済みの本人操作だけが最終操作時刻を更新する。ポーリングや期限切れ確認は延長しない | D-19をPhase 1で実装可能な単一の期限管理方針に確定 |
+| D-26 | 公開DTO/エラーの定義元は `src/shared/contracts/`、共有入力検証は `src/shared/validation/`、番号付きマイグレーションは `src/main/db/migrations/` に置く。Phase 1で適用履歴用 `schema_migrations` を初期化する | Main秘密型とRenderer公開契約を分離し、適用済み移行の不変性を保つ |
+| D-27 | Argon2idはargon2 npm 0.45.1のArgon2id実装、m=65,536 KiB、t=3、p=4、出力32 byteを採用 | 64 MiB級のメモリコストを確保し、Windows x64 Electronで実測して選定。実行時間はPhase 0記録に残す |
+| D-28 | 製品DBのuserData内ファイル名は `store-inventory.sqlite`。Phase 0検証DBは `phase0-validation/persistence.sqlite` | 製品データと検証データを別ファイル・別ディレクトリに分離し、検証実行が業務DBに触れないようにする |
 
-## Phase 0で確定する事項
+## Phase 0 技術確定・実測
 
-- Electron/electron-vite/React/Vite/Node/npm/better-sqlite3/Argon2id/electron-builder/Vitest/Playwrightの互換バージョン。
-- 採用KDFライブラリ、パラメータ、メモリ/実行時間、Electron ABI再ビルドとパッケージ配置。
-- アプリ識別子、実際のDBファイル名、Windowsの対象データ領域ロック方式、復旧ツールの配布形式。
-- パッケージ版のCSP、sandbox付きPreloadの内部トークン保持/受渡し方式、Main内期限更新の実装。
-- テスト隔離、時計制御、Playwright Electron起動と実コマンド。
+2026-10-20のWindows x64環境で確定した固定バージョン:
 
-これらは検証待ちでありPhase 0の作業を妨げない。検証に失敗した場合、理由を記録し、原Planの技術構成・セキュリティを変える必要があれば管理者へ確認してから後続へ進む。
+| 構成 | バージョン |
+| --- | ---: |
+| Host Node.js / npm | 24.19.0 / 11.17.0 |
+| Electron | 44.9.0（同梱Node.js 24.22.0） |
+| electron-vite / Vite | 6.0.0 / 8.3.4 |
+| TypeScript / React | 7.0.2 / 19.3.1 |
+| better-sqlite3 / argon2 | 13.0.3 / 0.45.1 |
+| electron-builder / Vitest / Playwright | 26.15.3 / 5.0.5 / 1.64.1 |
+
+electron-vite公式の必要Node.js範囲（20.19+または22.12+）にHost Node 24が含まれる。Electronはsandboxed preloadがNodeの完全なrequire環境を持たないため、Preloadは依存をbundleし、CommonJS出力にする。electron-builderはbetter-sqlite3/argon2をx64 Electron向けに再ビルドし、`.node`をasar外へ配置する。Electron公式のネイティブモジュール手順どおり再ビルドを実施した。
+
+互換性・実装の参照先は [electron-vite前提条件](https://electron-vite.org/guide/)、[Electronのネイティブモジュール](https://www.electronjs.org/docs/latest/tutorial/using-native-node-modules/)、[Electronセキュリティ推奨](https://www.electronjs.org/docs/latest/tutorial/security)、[electron-builder NSIS設定](https://www.electron.build/docs/nsis/)、[Playwright Electron API](https://playwright.dev/docs/api/class-electron)、[node-argon2実装資料](https://github.com/ranisalt/node-argon2) を参照。
+
+Windows実測はKDFハッシュ21ms、照合18ms（同一マシンで各1回のPhase 0起動結果）。測定は環境依存の単回値であり、正式な性能試験ではない。アプリ識別子は初期値で、正式な販売者ドメインが決まった時点で変更を判断する。
+
+製品DBは `%APPDATA%\沖縄店舗在庫管理\store-inventory.sqlite`、Phase 0検証用DBは `%APPDATA%\沖縄店舗在庫管理\phase0-validation\persistence.sqlite`。起動引数 `--phase0-verify` のMain内限定検証で後者を作成/再読込し、結果を同ディレクトリの `result.json` に記録する。通常UI/PreloadからDB読書きや検証ハッシュへアクセスできない。
+
+## Phase 0の確定状況
+
+依存バージョン、Argon2id設定、Windows userData名と排他方式、NSIS設定、検証コマンド、共有契約/マイグレーション配置は上記記録のとおり確定した。Electron内部トークンの受渡しと期限管理はD-24/D-25のとおりPhase 1で実装する。管理者復旧ツールの独立配布はD-23のとおりPhase 4で実装する。Phase 0で残る環境上の課題はなく、Windows 10/更新インストール/署名証明書/NSIS実インストールは後続の対象である。
 
 ## 後続フェーズでの実機検証
 

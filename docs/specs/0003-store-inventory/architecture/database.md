@@ -4,7 +4,7 @@
 
 ## 共通契約 R-DB
 
-SQLiteはuserData内の固定ファイルに保存し、アプリ更新と分離する。IDはUUID形式のテキスト、日時はMainが生成するUTC ISO 8601、真偽値は0/1。外部キーを有効化し、busy timeoutは初期案5秒とする。整数在庫は0〜2,147,483,647とし、DTO検証とDB CHECKの両方で範囲を制約する。これはJavaScriptとSQLite間の数量精度を明確にする設計上限である。
+SQLiteはuserData内の固定ファイル `store-inventory.sqlite` に保存し、アプリ更新と分離する。Phase 0の検証DBは `phase0-validation/persistence.sqlite` に置き、製品DBから分離する。IDはUUID形式のテキスト、日時はMainが生成するUTC ISO 8601、真偽値は0/1。外部キーを有効化し、busy timeoutは初期案5秒とする。整数在庫は0〜2,147,483,647とし、DTO検証とDB CHECKの両方で範囲を制約する。これはJavaScriptとSQLite間の数量精度を明確にする設計上限である。
 
 ## スキーマ定義
 

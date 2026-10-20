@@ -6,7 +6,27 @@
 
 Vitestでドメイン/DB/IPC、PlaywrightでElectron E2Eを行う。採用バージョンにおけるElectron起動方法を公式資料で確認する。テストDB、userData、出力先は毎回隔離した一時領域とし、実ユーザーの通常userData・手動起動アプリを使用/削除しない。
 
-時計、乱数、ファイル選択は差し替え可能な境界とし、長時間待機や通常運用向けバックドアを入れずに期限・キャンセル・失敗を再現する。npm scriptsはPhase 0で作成し、その実名をプロンプト/READMEへ追記する。現時点では実行済みのコマンドはない。
+時計、乱数、ファイル選択は差し替え可能な境界とし、長時間待機や通常運用向けバックドアを入れずに期限・キャンセル・失敗を再現する。Phase 0のnpm scriptsと検証結果は以下に記録する。
+
+## Phase 0 実行結果（2026-10-20）
+
+対象はWindows x64、OS build 10.0.26200、Host Node.js 24.19.0/npm 11.17.0。Windowsネイティブモジュール用のPython 3.12とVisual Studio 2022 x64開発環境を設定して検証した。
+
+| コマンド/確認 | 結果 |
+| --- | --- |
+| `npm ci` | 成功。x64 Native Tools Command Promptから実施。`postinstall`でElectron 44.9.0向けにネイティブ依存を再ビルド |
+| `npm run typecheck` | 成功 |
+| `npm test` | 成功。SQLite close/reopenとArgon2id正誤照合の最小テスト1件 |
+| `npm run build` | 成功。Main/Preload/Rendererを別出力 |
+| `npm run test:e2e` | 成功。隔離userDataで起動、見出し表示とRendererの`process`/`require`非公開を確認 |
+| `npm run verify:desktop` | 開発版でSQLite作成後の再起動読込とArgon2id照合に成功 |
+| `npm run dist:win` | 成功。Electron ABI再ビルド後、x64 NSIS installerとasar化された`win-unpacked` appを生成 |
+| `npm run test:packaged` | 成功。NSISを一時ディレクトリへサイレント導入し、導入アプリを隔離userDataで2回起動。SQLite初回書込み→再起動読込・Argon2id照合後、アプリをアンインストール |
+| `npm audit --omit=dev` | 本番依存0件の脆弱性 |
+
+Argon2idのWindows実測はハッシュ21ms、照合18msの記録と、後続の隔離検証でハッシュ/照合各33〜34ms。単回計測であり正式な性能試験ではない。Playwrightは専用userDataと一時領域を使い、実ユーザーの保存データを操作しない。開発依存全体のnpm auditにはmoderate 8件が報告されたため、Phase 5の依存更新時に再確認する。
+
+NSIS installerの一時領域への実インストール・起動・検証・アンインストールまで確認した。Windows 10、更新インストール、署名証明書、Excel、復旧ツールは後続フェーズの検証対象。
 
 ## 単体・DB・IPCの検証表
 

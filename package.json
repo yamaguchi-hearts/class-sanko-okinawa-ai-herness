@@ -1,0 +1,85 @@
+{
+  "name": "okinawa-store-inventory",
+  "version": "0.1.0",
+  "packageManager": "npm@11.17.0",
+  "engines": {
+    "node": "24.19.0",
+    "npm": "11.17.0"
+  },
+  "private": true,
+  "description": "店舗向け商品在庫管理デスクトップアプリ",
+  "main": "out/main/index.js",
+  "scripts": {
+    "postinstall": "electron-builder install-app-deps",
+    "dev": "electron-vite dev",
+    "dev:renderer": "vite --config vite.renderer.config.mts",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test tests/e2e/startup.spec.ts",
+    "test:packaged": "playwright test tests/e2e/packaged.spec.ts",
+    "rebuild:native": "electron-rebuild -f",
+    "dist:win": "electron-builder --win nsis --x64",
+    "verify:desktop": "electron . --phase0-verify"
+  },
+  "dependencies": {
+    "argon2": "0.45.1",
+    "better-sqlite3": "13.0.3",
+    "proper-lockfile": "4.1.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "4.0.3",
+    "@playwright/test": "1.64.1",
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "24.10.1",
+    "@types/proper-lockfile": "4.1.4",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.1.2",
+    "electron": "44.9.0",
+    "electron-builder": "26.15.3",
+    "electron-vite": "6.0.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.4",
+    "vitest": "5.0.5"
+  },
+  "build": {
+    "appId": "jp.co.sanko-okinawa.store-inventory",
+    "productName": "沖縄店舗在庫管理",
+    "asar": true,
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "npmRebuild": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${version}-win-x64.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    }
+  },
+  "allowScripts": {
+    "argon2@0.45.1": true
+  }
+}
