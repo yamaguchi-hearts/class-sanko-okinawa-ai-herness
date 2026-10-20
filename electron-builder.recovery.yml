@@ -1,0 +1,20 @@
+appId: jp.co.sanko-okinawa.store-inventory-recovery
+productName: 沖縄店舗在庫管理 管理者復旧ツール
+asar: true
+asarUnpack:
+  - "**/*.node"
+npmRebuild: true
+directories:
+  output: release/recovery
+files:
+  - out/**/*
+  - package.json
+extraMetadata:
+  main: out/main/recovery.js
+win:
+  target:
+    - target: portable
+      arch:
+        - x64
+  requestedExecutionLevel: requireAdministrator
+  artifactName: "${productName}-${version}-win-x64.${ext}"
