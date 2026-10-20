@@ -24,4 +24,13 @@ GPT6-Luna［High］の実装者として作業する。モデルと推論設定�
 | [04](04-product-images.md) | 商品画像とバックアップ対応 |
 | [05](05-integration.md) | 統合検証、既存文書と配布の更新 |
 
-2026-10-20時点で01〜04は実装・検証済み。05はfrozen-lockfile install、lint/型検査/単体・開発E2E、NSIS配布版E2E、復旧portable生成まで現環境で確認した。TS7の型検査とTS6互換APIを併用する。更新インストール、UAC昇格後の復旧、別Windows実機などが未検証のため、05と既存Phase 4の運用ゲートは完了扱いしない。
+2026-10-20時点で01〜04の実装と機能別検証は完了。05はfrozen-lockfile install、lint・型検査・単体テスト・開発版E2E、NSIS配布版E2E、復旧portable生成まで現環境で確認した。TS7の型検査とTS6互換APIを併用する。検証環境と実行結果の詳細は[検証記録](../../specs/0003-store-inventory/delivery/verification.md#0004-05-横断統合検証2026-10-20)を参照。
+
+以下は未検証のため、05および既存Phase 4の運用ゲートは完了扱いしない。
+
+- NSISの更新インストール後に既存DBが保持され、新規マイグレーションが適用されること
+- UAC昇格後の復旧ツール実操作
+- 別のWindows 10/11実機での動作
+- 署名済み配布物の検証
+- Windows ExcelでのCSV表示
+- 画像選択ダイアログのキャンセル・画像置換を含むWindows実操作
