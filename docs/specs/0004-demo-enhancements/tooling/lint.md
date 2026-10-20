@@ -4,7 +4,7 @@
 
 ## 採用と対象
 
-設計判断としてESLint、`@eslint/js`、`typescript-eslint`、`eslint-plugin-react-hooks`、`globals` を開発依存に採用し、互換版を固定する。既存のTypeScriptはpackage.jsonで7.0.2なので、parserの対応を確認する。対応していない場合は黙ってTypeScriptを降格せず、互換構成の候補と影響を管理者へ確認する。
+設計判断としてESLint、`@eslint/js`、`typescript-eslint`、`eslint-plugin-react-hooks`、`globals` を開発依存に採用し、互換版を固定する。`typescript-eslint@8.71.2` の公式対応範囲はTypeScript `>=4.8.4 <6.1.0` であるため、TypeScriptは `6.0.3` に固定する。TypeScriptの機能互換性は型検査・テスト・ビルドで確認する。
 
 `eslint.config.mjs` のflat configを定義元とし、Main/Preload/Renderer/共有コード/復旧ツール/テスト/TS設定ファイルを対象にする。`node_modules`, `out`, `release`, `coverage`, `test-results`, `playwright-report` を除外する。
 

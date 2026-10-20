@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { openStoreDatabase } from '../../src/main/db/connection'
 import { AppError, AuthService } from '../../src/main/auth/service'
 import { CatalogService } from '../../src/main/services/catalog'
-import type { ProductDraft, ProductListQuery } from '../../src/shared/contracts'
+import type { CreateProductInput, ProductListQuery } from '../../src/shared/contracts'
 import { validateCategoryName, validateCreateProduct, validateProductListQuery } from '../../src/shared/validation'
 
 let dir = ''
@@ -21,16 +21,28 @@ async function setup(): Promise<void> {
   adminToken = admin.token
 }
 const query = (patch: Partial<ProductListQuery> = {}): ProductListQuery => ({ search: '', categoryId: null, status: 'ALL', stockFilter: 'ALL', sortKey: 'name', direction: 'asc', page: 1, pageSize: 50, ...patch })
-const product = (patch: Partial<ProductDraft> = {}): ProductDraft => ({ sku: 'SKU-1', name: '試験商品', categoryId: null, unit: '個', reorderLevel: 0, note: null, ...patch })
+const product = (patch: Partial<CreateProductInput> = {}): CreateProductInput => ({ sku: 'SKU-1', name: '試験商品', categoryId: null, unit: '個', reorderLevel: 0, note: null, initialStock: 0, imageSelectionId: null, ...patch })
 
 describe('catalog and category foundation', () => {
-  it('starts at migration 3 and creates products with zero stock and no stock update DTO', async () => {
+  it('uses the latest schema and creates products with explicit initial stock', async () => {
     await setup()
-    expect((db!.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as { version: number }).version).toBe(5)
+    expect((db!.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as { version: number }).version).toBe(7)
     const created = catalog.createProduct(adminToken, 1, product())
     expect(created.currentStock).toBe(0)
     expect(validateCreateProduct({ ...product(), currentStock: 500 }).ok).toBe(false)
     expect((db!.prepare("SELECT current_stock FROM products WHERE id=?").get(created.id) as { current_stock: number }).current_stock).toBe(0)
+  })
+
+  it('records positive initial stock as one opening movement atomically', async () => {
+    await setup()
+    const created = catalog.createProduct(adminToken, 1, product({ sku: 'OPENING-1', initialStock: 12 }))
+    expect(created.currentStock).toBe(12)
+    expect(db!.prepare("SELECT movement_type,quantity_delta,stock_before,stock_after,reason_code,note FROM stock_movements WHERE product_id=?").get(created.id)).toMatchObject({ movement_type: 'OPENING', quantity_delta: 12, stock_before: 0, stock_after: 12, reason_code: 'OTHER', note: '商品登録時の初期在庫' })
+    expect((db!.prepare("SELECT COUNT(*) n FROM stock_movements WHERE product_id=? AND movement_type='OPENING'").get(created.id) as { n: number }).n).toBe(1)
+    expect(validateCreateProduct({ ...product(), imageSelectionId: null }).ok).toBe(true)
+    expect(validateCreateProduct({ ...product(), initialStock: -1 }).ok).toBe(false)
+    expect(validateCreateProduct({ ...product(), initialStock: 1.5 }).ok).toBe(false)
+    expect(validateCreateProduct({ ...product(), initialStock: '1' }).ok).toBe(false)
   })
 
   it('validates normalized boundaries, SKU alphabet, and page size', () => {
@@ -48,10 +60,23 @@ describe('catalog and category foundation', () => {
     const one = catalog.createProduct(adminToken, 1, product({ sku: '  AbC_1  ' }))
     const two = catalog.createProduct(adminToken, 1, product({ sku: 'SKU-2', name: '別商品' }))
     expect(one.sku).toBe('AbC_1')
-    expect(() => catalog.updateProduct(adminToken, 1, { ...product({ sku: 'abc_1' }), productId: two.id })).toThrowError(AppError)
+    expect(() => catalog.updateProduct(adminToken, 1, { ...product({ sku: 'abc_1' }), productId: two.id, imageChange: { kind: 'KEEP' } })).toThrowError(AppError)
     catalog.deactivateProduct(adminToken, 1, one.id)
     expect(() => catalog.createProduct(adminToken, 1, product({ sku: 'abc_1' }))).toThrowError(AppError)
     expect(catalog.listProducts(adminToken, 1, query({ status: 'INACTIVE' })).items.map((p) => p.id)).toContain(one.id)
+  })
+
+  it('allows ADMIN to reactivate an inactive product without changing its stock or history', async () => {
+    await setup()
+    const item = catalog.createProduct(adminToken, 1, product({ initialStock: 8 }))
+    catalog.deactivateProduct(adminToken, 1, item.id)
+    catalog.activateProduct(adminToken, 1, item.id)
+    const active = catalog.listProducts(adminToken, 1, query()).items.find(({ id }) => id === item.id)
+    expect(active).toMatchObject({ id: item.id, isActive: true, currentStock: 8 })
+    expect((db!.prepare('SELECT COUNT(*) AS n FROM stock_movements WHERE product_id=?').get(item.id) as { n: number }).n).toBe(1)
+    expect((db!.prepare("SELECT action FROM audit_logs WHERE entity_id=? AND action IN ('PRODUCT_DEACTIVATED','PRODUCT_ACTIVATED')").all(item.id) as Array<{ action: string }>).map(({ action }) => action).sort()).toEqual(['PRODUCT_ACTIVATED', 'PRODUCT_DEACTIVATED'])
+    catalog.activateProduct(adminToken, 1, item.id)
+    expect((db!.prepare("SELECT COUNT(*) AS n FROM audit_logs WHERE entity_id=? AND action='PRODUCT_ACTIVATED'").get(item.id) as { n: number }).n).toBe(1)
   })
 
   it('keeps an inactive category on its existing product but disallows selecting it for new products', async () => {
@@ -61,10 +86,10 @@ describe('catalog and category foundation', () => {
     const item = catalog.createProduct(adminToken, 1, product({ categoryId: category.id }))
     catalog.deactivateCategory(adminToken, 1, category.id)
     expect(catalog.listProducts(adminToken, 1, query()).items[0]).toMatchObject({ categoryId: category.id, categoryName: '備品・工具', categoryActive: false })
-    expect(catalog.updateProduct(adminToken, 1, { ...product({ sku: item.sku, name: '編集商品', categoryId: category.id }), productId: item.id }).categoryActive).toBe(false)
+    expect(catalog.updateProduct(adminToken, 1, { ...product({ sku: item.sku, name: '編集商品', categoryId: category.id }), productId: item.id, imageChange: { kind: 'KEEP' } }).categoryActive).toBe(false)
     expect(() => catalog.createProduct(adminToken, 1, product({ sku: 'SKU-OTHER', categoryId: category.id }))).toThrowError(AppError)
     const other = catalog.createCategory(adminToken, 1, '日用品')
-    expect(catalog.updateProduct(adminToken, 1, { ...product({ sku: item.sku, categoryId: other.id }), productId: item.id }).categoryId).toBe(other.id)
+    expect(catalog.updateProduct(adminToken, 1, { ...product({ sku: item.sku, categoryId: other.id }), productId: item.id, imageChange: { kind: 'KEEP' } }).categoryId).toBe(other.id)
     expect(catalog.listCategories(adminToken, 1, true)).toHaveLength(2)
   })
 

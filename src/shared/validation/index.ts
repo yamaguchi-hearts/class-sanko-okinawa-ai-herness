@@ -1,7 +1,10 @@
-import type { CategorySummary, CreateUserInput, LoginInput, NewPasswordInput, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSortKey, ProductStatusFilter, ProductStockFilter, RecordStockMovementInput, ResetInput, Role, SetupInput, StockMovementQuery, StockMovementType, StockReasonCode, UpdateCategoryInput, UpdateProductInput, UpdateUserInput } from '../contracts'
+import type { CreateProductInput, CreateUserInput, LoginInput, NewPasswordInput, PasswordChangeInput, ProductListQuery, ProductSortKey, ProductStatusFilter, ProductStockFilter, ProductImageChange, RecordStockMovementInput, ResetInput, Role, SetupInput, StockMovementQuery, StockMovementType, StockReasonCode, UpdateCategoryInput, UpdateProductInput, UpdateUserInput } from '../contracts'
 
 export type ValidationIssue = Readonly<{ path: string; message: string }>
 export type ValidationResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; issues: readonly ValidationIssue[] }>
+export const PASSWORD_MIN_LENGTH = 4
+export const PASSWORD_MAX_LENGTH = 128
+export const MAX_STOCK = 2_147_483_647
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 const stringField = (v: Record<string, unknown>, key: string, min: number, max: number): string | undefined => {
   const value = v[key]
@@ -34,8 +37,8 @@ const name = (v: Record<string, unknown>, key: string): string | undefined => {
   return value && [...value].length > 0 ? value : undefined
 }
 const password = (v: Record<string, unknown>, key: string): string | undefined => {
-  const value = stringField(v, key, 12, 128)
-  return value && [...value].length >= 12 ? value : undefined
+  const value = stringField(v, key, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH)
+  return value && [...value].length >= PASSWORD_MIN_LENGTH ? value : undefined
 }
 export const validateSetup = (v: unknown) => parse<SetupInput>(v, {
   storeName: (x) => name(x, 'storeName'), displayName: (x) => name(x, 'displayName'), loginName: login,
@@ -43,7 +46,7 @@ export const validateSetup = (v: unknown) => parse<SetupInput>(v, {
 }, ['storeName', 'displayName', 'loginName', 'password', 'confirmPassword'])
 export const validateLogin = (v: unknown) => parse<LoginInput>(v, { loginName: login, password: (x) => stringField(x, 'password', 1, 128) }, ['loginName', 'password'])
 export const validatePasswordChange = (v: unknown) => parse<PasswordChangeInput>(v, {
-  currentPassword: (x) => stringField(x, 'currentPassword', 1, 128), newPassword: (x) => password(x, 'newPassword'), confirmPassword: (x) => password(x, 'confirmPassword')
+  currentPassword: (x) => stringField(x, 'currentPassword', 1, PASSWORD_MAX_LENGTH), newPassword: (x) => password(x, 'newPassword'), confirmPassword: (x) => password(x, 'confirmPassword')
 }, ['currentPassword', 'newPassword', 'confirmPassword'])
 export const validateReset = (v: unknown) => parse<ResetInput>(v, { loginName: login, code: (x) => stringField(x, 'code', 1, 128) }, ['loginName', 'code'])
 export const validateNewPassword = (v: unknown) => parse<NewPasswordInput>(v, { password: (x) => password(x, 'password'), confirmPassword: (x) => password(x, 'confirmPassword') }, ['password', 'confirmPassword'])
@@ -66,7 +69,9 @@ const unitField = (v: Record<string, unknown>): string | undefined => {
   const value = trimmedField(v, 'unit', 1, 16)
   return value && [...value].length > 0 ? value : undefined
 }
-const reorderLevel = (v: Record<string, unknown>): number | undefined => Number.isSafeInteger(v.reorderLevel) && (v.reorderLevel as number) >= 0 && (v.reorderLevel as number) <= 2_147_483_647 ? v.reorderLevel as number : undefined
+const stockNumber = (v: Record<string, unknown>, key: string, allowZero: boolean): number | undefined => Number.isSafeInteger(v[key]) && (v[key] as number) >= (allowZero ? 0 : 1) && (v[key] as number) <= MAX_STOCK ? v[key] as number : undefined
+const reorderLevel = (v: Record<string, unknown>): number | undefined => stockNumber(v, 'reorderLevel', true)
+const initialStock = (v: Record<string, unknown>): number | undefined => stockNumber(v, 'initialStock', true)
 const noteField = (v: Record<string, unknown>): string | null | undefined => {
   if (v.note === null) return null
   if (typeof v.note !== 'string') return undefined
@@ -78,11 +83,21 @@ const productFields = {
   sku: productSku, name: productName, categoryId: (v: Record<string, unknown>) => uuidField(v, 'categoryId'),
   unit: unitField, reorderLevel, note: noteField
 }
-export const validateCreateProduct = (v: unknown) => parse<ProductDraft>(v, productFields, ['sku', 'name', 'categoryId', 'unit', 'reorderLevel', 'note'])
+const selectionId = (v: Record<string, unknown>, key: string): string | null | undefined => v[key] === null ? null : typeof v[key] === 'string' && /^[0-9a-f-]{36}$/i.test(v[key] as string) ? v[key] as string : undefined
+const imageChange = (v: Record<string, unknown>): ProductImageChange | undefined => {
+  if (!isRecord(v.imageChange)) return undefined
+  const value = v.imageChange
+  if (Object.keys(value).length === 1 && value.kind === 'KEEP') return { kind: 'KEEP' }
+  if (Object.keys(value).length === 1 && value.kind === 'REMOVE') return { kind: 'REMOVE' }
+  if (Object.keys(value).length === 2 && value.kind === 'REPLACE' && typeof value.selectionId === 'string' && /^[0-9a-f-]{36}$/i.test(value.selectionId)) return { kind: 'REPLACE', selectionId: value.selectionId }
+  return undefined
+}
+export const validateCreateProduct = (v: unknown) => parse<CreateProductInput>(v, { ...productFields, initialStock, imageSelectionId: (x) => selectionId(x, 'imageSelectionId') }, ['sku', 'name', 'categoryId', 'unit', 'reorderLevel', 'note', 'initialStock', 'imageSelectionId'])
 export const validateUpdateProduct = (v: unknown) => parse<UpdateProductInput>(v, {
   ...productFields,
-  productId: (x) => typeof x.productId === 'string' && /^[0-9a-f-]{36}$/i.test(x.productId) ? x.productId : undefined
-}, ['productId', 'sku', 'name', 'categoryId', 'unit', 'reorderLevel', 'note'])
+  productId: (x) => typeof x.productId === 'string' && /^[0-9a-f-]{36}$/i.test(x.productId) ? x.productId : undefined,
+  imageChange
+}, ['productId', 'sku', 'name', 'categoryId', 'unit', 'reorderLevel', 'note', 'imageChange'])
 export const validateProductListQuery = (v: unknown) => parse<ProductListQuery>(v, {
   search: (x) => typeof x.search === 'string' && [...x.search.trim()].length <= 200 ? x.search.trim() : undefined,
   categoryId: (x) => uuidField(x, 'categoryId'),

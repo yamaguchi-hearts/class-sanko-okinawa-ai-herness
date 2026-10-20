@@ -1,10 +1,10 @@
 {
   "name": "okinawa-store-inventory",
   "version": "0.1.0",
-  "packageManager": "npm@11.17.0",
+  "packageManager": "pnpm@12.14.0",
   "engines": {
     "node": "24.19.0",
-    "npm": "11.17.0"
+    "pnpm": "12.14.0"
   },
   "private": true,
   "description": "店舗向け商品在庫管理デスクトップアプリ",
@@ -17,11 +17,15 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "npm run build && playwright test tests/e2e/startup.spec.ts tests/e2e/authentication.spec.ts tests/e2e/maintenance.spec.ts",
+    "test:e2e": "pnpm run build && playwright test tests/e2e/startup.spec.ts tests/e2e/authentication.spec.ts tests/e2e/maintenance.spec.ts",
     "test:packaged": "playwright test tests/e2e/packaged.spec.ts",
     "rebuild:native": "electron-rebuild -f",
     "dist:win": "electron-builder --win nsis --x64",
-    "dist:recovery": "npm run build && electron-builder --config electron-builder.recovery.yml --win portable --x64",
+    "dist:recovery": "pnpm run build && electron-builder --config electron-builder.recovery.yml --win portable --x64",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --max-warnings 0 --fix",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test",
+    "release:evidence": "node scripts/release-evidence.mjs",
     "verify:desktop": "electron . --phase0-verify"
   },
   "dependencies": {
@@ -43,7 +47,12 @@
     "electron": "44.9.0",
     "electron-builder": "26.15.3",
     "electron-vite": "6.0.0",
-    "typescript": "7.0.2",
+    "@eslint/js": "9.39.5",
+    "eslint": "9.39.5",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "globals": "16.5.0",
+    "typescript-eslint": "8.71.2",
+    "typescript": "6.0.3",
     "vite": "8.3.4",
     "vitest": "5.0.5"
   },
@@ -79,8 +88,5 @@
       "allowToChangeInstallationDirectory": true,
       "deleteAppDataOnUninstall": false
     }
-  },
-  "allowScripts": {
-    "argon2@0.45.1": true
   }
 }

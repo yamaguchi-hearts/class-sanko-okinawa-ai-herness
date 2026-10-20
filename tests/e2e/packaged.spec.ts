@@ -37,7 +37,7 @@ test('packaged Windows app persists SQLite and verifies Argon2id after restart',
     await window.getByLabel('店舗名').fill('パッケージ検証店舗')
     await window.getByLabel('管理者表示名').fill('配布ADMIN')
     await window.getByLabel('ログインID').fill('packaged-admin')
-    await window.getByLabel('パスワード（12〜128文字）').fill('packaged native passphrase')
+    await window.getByLabel('パスワード（4〜128文字）').fill('packaged native passphrase')
     await window.getByLabel('パスワード（確認）').fill('packaged native passphrase')
     await window.getByRole('button', { name: '初期設定を完了' }).click()
     await expect(window.getByRole('heading', { name: 'ダッシュボード' })).toBeVisible()

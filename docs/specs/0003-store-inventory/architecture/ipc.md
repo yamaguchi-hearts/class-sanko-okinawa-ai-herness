@@ -21,7 +21,7 @@
 | `auth.completePasswordReset` | 新パスワード→void、変更後失効 | 再設定制限セッションのみ |
 | `auth.reportActivity` | 引数なし、Mainの最終操作時刻更新 | 通常セッション、検証済み操作通知のみ |
 | `products.list` | 検索・フィルタ・ソート・page/pageSize→Page | 両ロール |
-| `products.create/update/deactivate` | 商品DTO。現在庫を受け取らない | ADMIN |
+| `products.create/update/deactivate/activate` | 商品DTOまたは商品ID。現在庫を受け取らない | ADMIN |
 | `stock.record` | 種別、商品ID、数量または実数、理由、メモ→最新在庫・movement | 両ロール |
 | `stock.list` | 商品、期間、種別、実行者、ページ→Page | 両ロール |
 | `stock.getDashboard` | 集計・直近履歴→DashboardSummary | 両ロール |

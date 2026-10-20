@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import type { CategorySummary, Page, ProductDraft, ProductListQuery, ProductSummary, Role, UpdateCategoryInput, UpdateProductInput } from '../../shared/contracts'
+import type { CategorySummary, CreateProductInput, Page, ProductListQuery, ProductSummary, Role, UpdateCategoryInput, UpdateProductInput } from '../../shared/contracts'
 import type { StoreDatabase } from '../db/connection'
 import { CatalogRepository } from '../db/repositories/catalog'
 import { AppError, AuthService } from '../auth/service'
 import { audit, type AuditActor } from './audit'
+import { recordOpeningMovement } from './inventory'
+import type { ProductImagesService } from './product-images'
 
 function translateConstraint(error: unknown, entity: 'product' | 'category'): never {
   const message = error instanceof Error ? error.message : ''
@@ -13,7 +15,7 @@ function translateConstraint(error: unknown, entity: 'product' | 'category'): ne
 
 export class CatalogService {
   private readonly repository: CatalogRepository
-  constructor(private readonly db: StoreDatabase, private readonly auth: AuthService, private readonly clock: () => number = Date.now) {
+  constructor(private readonly db: StoreDatabase, private readonly auth: AuthService, private readonly clock: () => number = Date.now, private readonly images?: ProductImagesService) {
     this.repository = new CatalogRepository(db)
   }
   private now(): string { return new Date(this.clock()).toISOString() }
@@ -33,9 +35,11 @@ export class CatalogService {
     this.auth.canUseProtected(token, senderId)
     return this.repository.listCategories(includeInactive)
   }
-  createProduct(token: string, senderId: number, input: ProductDraft): ProductSummary {
+  createProduct(token: string, senderId: number, input: CreateProductInput): ProductSummary {
     const actor = this.requireActor(token, senderId, 'ADMIN')
     const id = randomUUID(); const now = this.now(); const sku = input.sku.trim(); const name = input.name.trim()
+    const selectedImage = input.imageSelectionId ? this.images?.requireSelection(token, senderId, input.imageSelectionId) : null
+    if (input.imageSelectionId && !selectedImage) throw new AppError('VALIDATION_ERROR')
     try {
       this.db.transaction(() => {
         if (input.categoryId) {
@@ -46,14 +50,22 @@ export class CatalogService {
         this.db.prepare(`INSERT INTO products(id,sku,name,name_search_key,category_id,unit,current_stock,reorder_level,note,is_active,created_at,updated_at)
           VALUES(?,?,?,?,?,?,0,?,?,1,?,?)`).run(id, sku, name, name.toLowerCase(), input.categoryId, input.unit.trim(), input.reorderLevel, input.note?.trim() || null, now, now)
         audit(this.db, 'PRODUCT_CREATED', actor, 'product', id, { sku, name, categoryId: input.categoryId, unit: input.unit.trim(), reorderLevel: input.reorderLevel })
+        if (input.initialStock > 0) recordOpeningMovement(this.db, actor, { id, sku, name }, input.initialStock, now)
+        if (selectedImage) {
+          this.images!.save(this.db, id, selectedImage, now)
+          audit(this.db, 'PRODUCT_IMAGE_SET', actor, 'product', id, { width: selectedImage.width, height: selectedImage.height, bytes: selectedImage.content.length, change: 'ADD' })
+        }
       }).immediate()
     } catch (error) { translateConstraint(error, 'product') }
+    if (input.imageSelectionId) this.images?.consumeSelection(senderId, input.imageSelectionId)
     const product = this.repository.getProduct(id)
     if (!product) throw new AppError('DATABASE_ERROR')
     return product
   }
   updateProduct(token: string, senderId: number, input: UpdateProductInput): ProductSummary {
     const actor = this.requireActor(token, senderId, 'ADMIN'); const now = this.now(); const sku = input.sku.trim(); const name = input.name.trim()
+    const selectedImage = input.imageChange.kind === 'REPLACE' ? this.images?.requireSelection(token, senderId, input.imageChange.selectionId) : null
+    if (input.imageChange.kind === 'REPLACE' && !selectedImage) throw new AppError('VALIDATION_ERROR')
     try {
       this.db.transaction(() => {
         const old = this.repository.getProduct(input.productId)
@@ -70,8 +82,18 @@ export class CatalogService {
           oldCategoryId: old.categoryId, newCategoryId: input.categoryId,
           oldUnit: old.unit, newUnit: input.unit.trim(), oldReorderLevel: old.reorderLevel, newReorderLevel: input.reorderLevel
         })
+        if (input.imageChange.kind === 'REMOVE') {
+          if (old.hasImage) {
+            this.images?.remove(this.db, input.productId)
+            audit(this.db, 'PRODUCT_IMAGE_REMOVED', actor, 'product', input.productId, { change: 'REMOVE' })
+          }
+        } else if (selectedImage) {
+          this.images!.save(this.db, input.productId, selectedImage, now)
+          audit(this.db, 'PRODUCT_IMAGE_SET', actor, 'product', input.productId, { width: selectedImage.width, height: selectedImage.height, bytes: selectedImage.content.length, change: 'REPLACE' })
+        }
       }).immediate()
     } catch (error) { translateConstraint(error, 'product') }
+    if (input.imageChange.kind === 'REPLACE') this.images?.consumeSelection(senderId, input.imageChange.selectionId)
     const product = this.repository.getProduct(input.productId)
     if (!product) throw new AppError('DATABASE_ERROR')
     return product
@@ -84,6 +106,17 @@ export class CatalogService {
       if (product.isActive) {
         this.db.prepare('UPDATE products SET is_active=0,updated_at=? WHERE id=?').run(now, productId)
         audit(this.db, 'PRODUCT_DEACTIVATED', actor, 'product', productId, { sku: product.sku, name: product.name })
+      }
+    }).immediate()
+  }
+  activateProduct(token: string, senderId: number, productId: string): void {
+    const actor = this.requireActor(token, senderId, 'ADMIN'); const now = this.now()
+    this.db.transaction(() => {
+      const product = this.repository.getProduct(productId)
+      if (!product) throw new AppError('NOT_FOUND')
+      if (!product.isActive) {
+        this.db.prepare('UPDATE products SET is_active=1,updated_at=? WHERE id=?').run(now, productId)
+        audit(this.db, 'PRODUCT_ACTIVATED', actor, 'product', productId, { sku: product.sku, name: product.name })
       }
     }).immediate()
   }

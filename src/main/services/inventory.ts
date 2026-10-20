@@ -1,10 +1,22 @@
 import { randomUUID } from 'node:crypto'
-import type { DashboardSummary, Page, RecordStockMovementInput, RecordStockMovementResult, Role, StockActorOption, StockMovementQuery, StockMovementSummary } from '../../shared/contracts'
+import type { CreateProductInput, DashboardSummary, Page, RecordStockMovementInput, RecordStockMovementResult, Role, StockActorOption, StockMovementQuery, StockMovementSummary } from '../../shared/contracts'
 import { calculateStockChange } from '../../shared/domain/inventory'
 import type { StoreDatabase } from '../db/connection'
 import { InventoryRepository } from '../db/repositories/inventory'
 import { AppError, AuthService } from '../auth/service'
 import { audit } from './audit'
+
+/** 商品作成トランザクションからのみ呼び出す初期在庫記録。独自のcommitは行わない。 */
+export function recordOpeningMovement(db: StoreDatabase, actor: Readonly<{ id: string; loginName: string; displayName: string; role: Role }>, product: Readonly<{ id: string; sku: string; name: string }>, initialStock: CreateProductInput['initialStock'], createdAt: string): StockMovementSummary {
+  if (!Number.isSafeInteger(initialStock) || initialStock <= 0) throw new AppError('VALIDATION_ERROR')
+  const repository = new InventoryRepository(db)
+  if (db.prepare("SELECT id FROM stock_movements WHERE product_id=? AND movement_type='OPENING'").get(product.id)) throw new AppError('VALIDATION_ERROR')
+  repository.updateCurrentStock(product.id, 0, initialStock, createdAt)
+  const movementId = randomUUID()
+  repository.insertMovement({ id: movementId, productId: product.id, type: 'OPENING', delta: initialStock, before: 0, after: initialStock, reasonCode: 'OTHER', note: '商品登録時の初期在庫', actorId: actor.id, actorLogin: actor.loginName, actorName: actor.displayName, createdAt })
+  audit(db, 'STOCK_RECORDED', actor, 'stock_movement', movementId, { productId: product.id, sku: product.sku, productName: product.name, type: 'OPENING', quantityDelta: initialStock, stockBefore: 0, stockAfter: initialStock, reasonCode: 'OTHER' })
+  return { id: movementId, productId: product.id, productSku: product.sku, productName: product.name, type: 'OPENING', quantityDelta: initialStock, stockBefore: 0, stockAfter: initialStock, reasonCode: 'OTHER', note: '商品登録時の初期在庫', actorUserId: actor.id, actorLoginName: actor.loginName, actorDisplayName: actor.displayName, createdAt }
+}
 
 export class InventoryService {
   private readonly repository: InventoryRepository
