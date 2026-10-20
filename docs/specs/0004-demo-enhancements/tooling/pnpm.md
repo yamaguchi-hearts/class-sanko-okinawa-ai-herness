@@ -25,6 +25,7 @@
 | ビルド | `pnpm run build` |
 | Windows / 復旧配布 | `pnpm run dist:win` / `pnpm run dist:recovery` |
 | 配布版確認 | `pnpm run test:packaged` |
+| リリース証跡 | `pnpm run release:evidence` |
 
 依存のビルド許可はpnpm 12の `pnpm-workspace.yaml` に `allowBuilds` として置き、現在はElectron ABIに必要な `argon2` と `electron-winstaller` のみを明示する。依存の追加・更新時は許可対象を再確認する。
 

@@ -19,6 +19,10 @@ test('opens a sandboxed renderer with no Node integration', async () => {
       throw new Error(`${error instanceof Error ? error.message : String(error)}\nMain process output:\n${startupLogs}`)
     }
     expect(await window.evaluate(() => ({ process: typeof process, require: typeof require }))).toEqual({ process: 'undefined', require: 'undefined' })
+    const csp = await window.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content')
+    expect(csp).toContain("script-src 'self'")
+    expect(csp).toContain("img-src 'self' data:")
+    expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/)
   } finally {
     await app.close()
     await rm(userData, { recursive: true, force: true })

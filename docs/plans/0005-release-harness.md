@@ -37,7 +37,7 @@ pnpm移行とlintの互換性対応を完了したため、本PlanのG2以降は
 | G0: 要件固定 | Plan/設計/プロンプトの要求ID対応、未確定事項の列挙 | 範囲、互換性を壊す変更、未確定事項の決定 | 対象要求、受入条件、実装順、判断待ちが追跡可能。重要な未決定を確定扱いしない。 |
 | G1: 再現可能な準備 | `pnpm install --frozen-lockfile`、lockfile差分確認、依存ビルド許可の確認 | Node/pnpm固定値と依存更新の妥当性 | クリーン環境で導入でき、不要なlockfileや未固定ツールに依存しない。 |
 | G2: 変更の品質 | `pnpm run lint` → `pnpm run typecheck` → `pnpm run test` → `pnpm run build` → `pnpm run test:e2e` | 失敗・skip・環境制約の切り分け、例外の承認 | 全必須コマンドが成功。`lint`は警告も失敗とし、広域ignore/disableでの回避を認めない。 |
-| G3: 配布候補 | `pnpm run dist:win`、`pnpm run dist:recovery`、`pnpm run test:packaged` | 新規導入、更新導入、復元、復旧exe、Windows実機の結果を確認 | 候補生成物、対象コミット、バージョン、ハッシュ、実行結果を対応付ける。既存DBを失わず、移行は一度だけ適用される。 |
+| G3: 配布候補 | `pnpm run dist:win`、`pnpm run dist:recovery`、`pnpm run test:packaged`、`pnpm run release:evidence` | 新規導入、更新導入、復元、復旧exe、Windows実機の結果を確認 | 候補生成物、対象コミット、バージョン、ハッシュ、実行結果を対応付ける。既存DBを失わず、移行は一度だけ適用される。 |
 | G4: 公開判断 | 生成物ハッシュとリリースノートの照合 | 署名、配布先、対象者、既知の制約、ロールバック可否を管理者が承認 | 承認記録、配布先、公開版、復旧手順を残す。未承認なら候補のままとする。 |
 | G5: 公開後確認 | 配布物からの起動・基本業務確認、問題記録 | 問題時の配布停止、前版への差戻し、利用者連絡 | 公開結果、既知問題、次回への改善項目を記録する。 |
 

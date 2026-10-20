@@ -25,6 +25,7 @@
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --max-warnings 0 --fix",
     "check": "pnpm run lint && pnpm run typecheck && pnpm run test",
+    "release:evidence": "node scripts/release-evidence.mjs",
     "verify:desktop": "electron . --phase0-verify"
   },
   "dependencies": {
