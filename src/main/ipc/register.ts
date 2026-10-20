@@ -1,10 +1,11 @@
-import { ipcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
+import { ipcMain, dialog, type IpcMainInvokeEvent, type WebContents, type BrowserWindow } from 'electron'
 import { AppError, AuthService } from '../auth/service'
 import { validateCategoryList, validateCategoryName, validateCreateProduct, validateCreateUser, validateLogin, validateNewPassword, validatePasswordChange, validateProductListQuery, validateRecordStockMovement, validateReset, validateSetup, validateStockMovementQuery, validateUpdateCategory, validateUpdateProduct, validateUpdateUser } from '../../shared/validation'
 import type { ValidationResult } from '../../shared/validation'
 import type { IpcResult, PublicErrorCode } from '../../shared/contracts'
 import type { CatalogService } from '../services/catalog'
 import type { InventoryService } from '../services/inventory'
+import type { MaintenanceService } from '../services/maintenance'
 
 type TokenEnvelope<T> = { token: string; value: T }
 function errorResult(error: unknown): IpcResult<never> {
@@ -15,7 +16,8 @@ function errorResult(error: unknown): IpcResult<never> {
       DUPLICATE_LOGIN: 'このログインIDはすでに使用されています。', DUPLICATE_SKU: 'このSKUはすでに登録されています。', DUPLICATE_CATEGORY: 'このカテゴリ名はすでに登録されています。',
       LAST_ADMIN_REQUIRED: '有効なADMINを1人以上残す必要があります。', NOT_FOUND: '対象が見つかりません。', INACTIVE_ENTITY: '無効な商品またはカテゴリは新たに選択できません。',
       INSUFFICIENT_STOCK: '在庫が不足しています。最新の在庫数を確認してください。',
-      DATABASE_BUSY: 'データベースが使用中です。少し待ってから再試行してください。', DATABASE_ERROR: 'データを保存できませんでした。', RECOVERY_REQUIRED: 'データベースに有効なADMINがないか、初期設定状態に不整合があります。通常セットアップを行わず、管理者復旧手順を確認してください。'
+      DATABASE_BUSY: 'データベースが使用中です。少し待ってから再試行してください。', DATABASE_ERROR: 'データを保存できませんでした。', RECOVERY_REQUIRED: 'データベースに有効なADMINがないか、初期設定状態に不整合があります。通常セットアップを行わず、管理者復旧手順を確認してください。',
+      BACKUP_INVALID: '選択したバックアップは破損しているか、このアプリでは使用できません。', BACKUP_FAILED: 'バックアップを作成できませんでした。', RESTORE_FAILED: '復元に失敗しました。元のデータを検査中です。業務画面へ戻らず、管理者へ連絡してください。'
     }
     return { ok: false, error: { code: error.code, message: messages[error.code] } }
   }
@@ -24,7 +26,9 @@ function errorResult(error: unknown): IpcResult<never> {
   return { ok: false, error: { code, message: code === 'DATABASE_BUSY' ? 'データベースが使用中です。少し待ってから再試行してください。' : '処理を完了できませんでした。' } }
 }
 
-export function registerIpc(auth: AuthService, catalog: CatalogService, inventory: InventoryService, getMainContents: () => WebContents | null, allowedUrl: (url: string) => boolean): void {
+export function registerIpc(auth: AuthService, catalog: CatalogService, inventory: InventoryService, getMainContents: () => WebContents | null, allowedUrl: (url: string) => boolean, maintenance: MaintenanceService, getWindow: () => BrowserWindow | null, restart: () => void): void {
+  let maintenanceMode = false
+  let inFlight = 0
   const assertSender = (event: IpcMainInvokeEvent): number => {
     const frame = event.senderFrame
     const main = getMainContents()
@@ -33,8 +37,16 @@ export function registerIpc(auth: AuthService, catalog: CatalogService, inventor
   }
   const handle = (channel: string, action: (event: IpcMainInvokeEvent, senderId: number, ...args: unknown[]) => unknown | Promise<unknown>) => {
     ipcMain.handle(channel, async (event, ...args) => {
-      try { const senderId = assertSender(event); return { ok: true, value: await action(event, senderId, ...args) } }
+      let counted = false
+      try {
+        const senderId = assertSender(event)
+        if (maintenanceMode && channel !== 'data:applyRestore') throw new AppError('FORBIDDEN')
+        counted = channel !== 'data:applyRestore'
+        if (counted) inFlight++
+        return { ok: true, value: await action(event, senderId, ...args) }
+      }
       catch (error) { return errorResult(error) }
+      finally { if (counted) inFlight-- }
     })
   }
   const valid = <T>(result: ValidationResult<T>): T => {
@@ -118,8 +130,53 @@ export function registerIpc(auth: AuthService, catalog: CatalogService, inventor
   })
   handle('stock:getDashboard', (_event, senderId, token) => inventory.dashboard(String(token), senderId))
   handle('stock:listActors', (_event, senderId, token) => inventory.listActors(String(token), senderId))
+  handle('settings:get', (_event, senderId, token) => maintenance.readSettings(String(token), senderId))
+  handle('settings:update', (_event, senderId, token, raw) => maintenance.updateSettings(String(token), senderId, raw))
+  handle('data:exportProducts', async (_event, senderId, token, raw) => {
+    const query = valid(validateProductListQuery(raw))
+    const window = getWindow()
+    const options = { title: '商品一覧をCSVへ保存', defaultPath: '商品一覧.csv', filters: [{ name: 'CSV', extensions: ['csv'] }] }
+    const selected = window ? await dialog.showSaveDialog(window, options) : await dialog.showSaveDialog(options)
+    if (selected.canceled || !selected.filePath) { maintenance.recordDialogCancelled(String(token), senderId, 'CSV_EXPORT_CANCELLED'); return { cancelled: true } }
+    const result = maintenance.exportProducts(String(token), senderId, query, selected.filePath)
+    return { cancelled: false, ...result }
+  })
+  handle('data:createBackup', async (_event, senderId, token) => {
+    maintenance.readSettings(String(token), senderId)
+    const options = { title: 'データベースをバックアップ', defaultPath: '店舗在庫バックアップ.sqlite3', filters: [{ name: 'SQLiteバックアップ', extensions: ['sqlite3'] }] }
+    const window = getWindow()
+    const selected = window ? await dialog.showSaveDialog(window, options) : await dialog.showSaveDialog(options)
+    if (selected.canceled || !selected.filePath) { maintenance.recordDialogCancelled(String(token), senderId, 'BACKUP_CANCELLED'); return { cancelled: true } }
+    return { cancelled: false, ...await maintenance.createBackup(String(token), senderId, selected.filePath) }
+  })
+  handle('data:inspectRestore', async (_event, senderId, token) => {
+    maintenance.readSettings(String(token), senderId)
+    const options = { title: '復元するバックアップを選択', properties: ['openFile'] as Array<'openFile'>, filters: [{ name: 'SQLiteバックアップ', extensions: ['sqlite3', 'sqlite', 'db'] }] }
+    const window = getWindow()
+    const selected = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options)
+    if (selected.canceled || !selected.filePaths[0]) { maintenance.recordDialogCancelled(String(token), senderId, 'RESTORE_CANCELLED'); return { cancelled: true } }
+    return { cancelled: false, candidate: maintenance.inspectRestoreCandidate(String(token), senderId, selected.filePaths[0]) }
+  })
+  handle('data:applyRestore', async (_event, senderId, token, raw) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw as object).sort().join(',') !== 'candidateId,confirmation,password' || Object.values(raw as Record<string, unknown>).some((v) => typeof v !== 'string')) throw new AppError('VALIDATION_ERROR')
+    const input = raw as { candidateId: string; confirmation: string; password: string }
+    if (!/^[0-9a-f-]{36}$/i.test(input.candidateId) || input.confirmation.length > 100 || input.password.length < 12 || input.password.length > 128) throw new AppError('VALIDATION_ERROR')
+    const confirmOptions = { type: 'warning' as const, title: 'データベース復元の最終確認', message: '現在のデータを置き換えます。SQLite形式の事前バックアップを作成し、復元後にアプリを再起動します。続行しますか？', buttons: ['復元を実行', 'キャンセル'], defaultId: 1, cancelId: 1, noLink: true }
+    const parent = getWindow()
+    const confirmed = parent ? await dialog.showMessageBox(parent, confirmOptions) : await dialog.showMessageBox(confirmOptions)
+    if (confirmed.response !== 0) { maintenance.recordDialogCancelled(String(token), senderId, 'RESTORE_CANCELLED'); return { cancelled: true } }
+    maintenanceMode = true
+    while (inFlight > 0) await new Promise((resolve) => setTimeout(resolve, 10))
+    let restartRequested = false
+    try {
+      return await maintenance.applyRestore(String(token), senderId, input.candidateId, input.confirmation, input.password, (t, s, p) => auth.reauthenticateAdmin(t, s, p), () => { restartRequested = true; restart() })
+    } catch (error) {
+      if (!restartRequested) maintenanceMode = false
+      throw error
+    }
+  })
   ipcMain.on('auth:trustedActivity', (event) => {
-    try { assertSender(event as IpcMainInvokeEvent); auth.reportActivity(event.sender.id) } catch { /* reject silently */ }
+    try { assertSender(event as IpcMainInvokeEvent); if (!maintenanceMode) auth.reportActivity(event.sender.id) } catch { /* reject silently */ }
   })
 }
 

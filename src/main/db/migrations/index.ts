@@ -110,5 +110,11 @@ export const migrations: readonly Migration[] = [
         CREATE INDEX stock_movements_actor_created ON stock_movements(actor_user_id, created_at DESC, id DESC);
       `)
     }
+  },
+  {
+    version: 5,
+    up(db) {
+      db.exec(`ALTER TABLE audit_logs ADD COLUMN actor_kind TEXT NOT NULL DEFAULT 'USER' CHECK (actor_kind IN ('USER','OFFLINE_RECOVERY','SYSTEM'))`)
+    }
   }
 ]

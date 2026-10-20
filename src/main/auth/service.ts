@@ -2,10 +2,11 @@ import argon2 from 'argon2'
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import type { StoreDatabase } from '../db/connection'
 import { audit, type AuditActor } from '../services/audit'
+import { issueResetCode } from './reset-code'
 import type { CreateUserInput, Role, SessionView, UserSummary } from '../../shared/contracts'
 
 export const ARGON_OPTIONS = { type: argon2.argon2id, memoryCost: 65_536, timeCost: 3, parallelism: 4, hashLength: 32 } as const
-export type AppErrorCode = 'VALIDATION_ERROR' | 'AUTH_REQUIRED' | 'AUTH_FAILED' | 'SESSION_EXPIRED' | 'ACCOUNT_LOCKED' | 'FORBIDDEN' | 'DUPLICATE_LOGIN' | 'DUPLICATE_SKU' | 'DUPLICATE_CATEGORY' | 'LAST_ADMIN_REQUIRED' | 'NOT_FOUND' | 'INACTIVE_ENTITY' | 'INSUFFICIENT_STOCK' | 'DATABASE_BUSY' | 'DATABASE_ERROR' | 'RECOVERY_REQUIRED'
+export type AppErrorCode = 'VALIDATION_ERROR' | 'AUTH_REQUIRED' | 'AUTH_FAILED' | 'SESSION_EXPIRED' | 'ACCOUNT_LOCKED' | 'FORBIDDEN' | 'DUPLICATE_LOGIN' | 'DUPLICATE_SKU' | 'DUPLICATE_CATEGORY' | 'LAST_ADMIN_REQUIRED' | 'NOT_FOUND' | 'INACTIVE_ENTITY' | 'INSUFFICIENT_STOCK' | 'DATABASE_BUSY' | 'DATABASE_ERROR' | 'RECOVERY_REQUIRED' | 'BACKUP_INVALID' | 'BACKUP_FAILED' | 'RESTORE_FAILED'
 export class AppError extends Error {
   constructor(readonly code: AppErrorCode) { super(code) }
 }
@@ -100,6 +101,20 @@ export class AuthService {
   }
   expireIdleSessions(): void {
     for (const session of [...this.sessions.values()]) if (session.state === 'AUTHENTICATED' && session.expiresAt <= this.clock()) this.lock(session)
+  }
+  recheckIdleSessions(): void {
+    const mins = Number((this.db.prepare("SELECT value FROM app_settings WHERE key='idle_lock_minutes'").get() as { value: string } | undefined)?.value ?? '15')
+    for (const session of [...this.sessions.values()]) {
+      if (session.state !== 'AUTHENTICATED') continue
+      session.expiresAt = session.lastActivity + mins * 60_000
+      if (session.expiresAt <= this.clock()) this.lock(session)
+    }
+  }
+  async reauthenticateAdmin(token: string, senderId: number, password: string): Promise<void> {
+    const session = this.session(token, senderId)
+    const user = this.db.prepare('SELECT password_hash,role,is_active FROM users WHERE id=?').get(session.userId) as { password_hash: string; role: Role; is_active: number } | undefined
+    if (!user || !user.is_active || user.role !== 'ADMIN') throw new AppError('FORBIDDEN')
+    if (!await argon2.verify(user.password_hash, password).catch(() => false)) throw new AppError('AUTH_FAILED')
   }
   getSession(senderId: number): SessionView | null {
     const token = this.tokenBySender.get(senderId)
@@ -200,10 +215,7 @@ export class AuthService {
   }
 
   private resetCode(userId: string, issuerId: string | null, issuerKind: 'ADMIN' | 'OFFLINE_RECOVERY', now: number): { code: string; expiresAt: string; resetCodeId: string } {
-    const code = randomBytes(32).toString('base64url'); const id = randomUUID(); const created = nowIso(now); const expires = nowIso(now + 15 * 60_000)
-    this.db.prepare('UPDATE password_reset_codes SET revoked_at=? WHERE user_id=? AND consumed_at IS NULL AND revoked_at IS NULL').run(created, userId)
-    this.db.prepare('INSERT INTO password_reset_codes(id,user_id,code_hash,expires_at,created_at,issuer_user_id,issuer_kind) VALUES(?,?,?,?,?,?,?)').run(id, userId, digest(code).toString('hex'), expires, created, issuerId, issuerKind)
-    return { code, expiresAt: expires, resetCodeId: id }
+    return issueResetCode(this.db, userId, issuerId, issuerKind, now)
   }
   private issueResetWithAudit(userId: string, issuer: AuditActor, mustChange = true): { code: string; expiresAt: string } {
     const result = this.db.transaction(() => {

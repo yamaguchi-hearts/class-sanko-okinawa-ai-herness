@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import type { CategorySummary, CreateUserInput, DashboardSummary, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSummary, RecordStockMovementInput, RecordStockMovementResult, ResetInput, SessionView, SetupInput, StockActorOption, StockMovementQuery, StockMovementSummary, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
+import type { AppSettings, BackupCandidate, CategorySummary, CreateUserInput, DashboardSummary, DataOperationResult, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSummary, RecordStockMovementInput, RecordStockMovementResult, ResetInput, SessionView, SetupInput, StockActorOption, StockMovementQuery, StockMovementSummary, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
 
 declare global {
   interface Window {
@@ -38,6 +38,13 @@ declare global {
         list(query: StockMovementQuery): Promise<IpcResult<Page<StockMovementSummary>>>
         getDashboard(): Promise<IpcResult<DashboardSummary>>
         listActors(): Promise<IpcResult<StockActorOption[]>>
+      }
+      settings: { get(): Promise<IpcResult<AppSettings>>; update(input: Pick<AppSettings, 'storeName' | 'idleLockMinutes'>): Promise<IpcResult<AppSettings>> }
+      data: {
+        exportProducts(query: ProductListQuery): Promise<IpcResult<DataOperationResult>>
+        createBackup(): Promise<IpcResult<DataOperationResult>>
+        inspectRestore(): Promise<IpcResult<{ cancelled: boolean; candidate?: BackupCandidate }>>
+        applyRestore(input: { candidateId: string; confirmation: string; password: string }): Promise<IpcResult<{ backupPath: string } | { cancelled: true }>>
       }
     }
   }

@@ -15,12 +15,14 @@
 | PRODUCT_CREATED/UPDATED/DEACTIVATED | 商品ID、SKU/名称/カテゴリ等の許可した変更前後 |
 | CATEGORY_CREATED/UPDATED/DEACTIVATED | 対象ID、名称・状態 |
 | STOCK_RECORDED | movement ID、商品、種別、delta、before/after、理由 |
-| CSV_EXPORTED | 種別、件数、選択条件、保存結果。全CSV内容は保存しない |
+| PRODUCTS_CSV_EXPORTED / PRODUCTS_CSV_EXPORT_FAILED / CSV_EXPORT_CANCELLED | 種別、件数、選択条件、結果分類。全CSV内容・絶対パスは保存しない |
 | SETTINGS_UPDATED | 許可設定キーと前後値 |
-| BACKUP_CREATED、BACKUP_RESTORED、RESTORE_FAILED | バックアップ識別、スキーマ、結果分類 |
-| ADMIN_RECOVERY_REQUESTED | オフライン保守実行者の識別、対象ADMIN、退避識別子 |
+| DATABASE_BACKUP_CREATED / DATABASE_BACKUP_FAILED / BACKUP_CANCELLED、BACKUP_CANDIDATE_REJECTED、BACKUP_RESTORED、RESTORE_FAILED | バックアップ識別、スキーマ、結果分類 |
+| ADMIN_RECOVERY_REQUESTED | `actor_kind=OFFLINE_RECOVERY`、Windows実行者、対象ADMIN、退避識別子 |
 
 details_jsonはイベント別スキーマから構築し、入力DTOや例外を丸ごとJSON化しない。パスワード、ハッシュ、コード、トークン、DB接続情報を記録しない。通常ファイルログにも同じ除外規則を適用する。
+
+監査主体は移行5の`actor_kind`で`USER`/`OFFLINE_RECOVERY`/`SYSTEM`を区別する。オフライン復旧exeはログインユーザーIDを捏造せず、対象ADMINはentity参照として記録する。
 
 ## 整合性と失敗
 

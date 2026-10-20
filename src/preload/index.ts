@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { CategorySummary, CreateUserInput, DashboardSummary, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSummary, RecordStockMovementInput, RecordStockMovementResult, ResetInput, SessionView, SetupInput, StockActorOption, StockMovementQuery, StockMovementSummary, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
+import type { AppSettings, BackupCandidate, CategorySummary, CreateUserInput, DashboardSummary, DataOperationResult, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSummary, RecordStockMovementInput, RecordStockMovementResult, ResetInput, SessionView, SetupInput, StockActorOption, StockMovementQuery, StockMovementSummary, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
 
 let internalToken: string | null = null
 type TokenResponse = IpcResult<{ session: SessionView; internalToken: string }>
@@ -50,6 +50,16 @@ const api = Object.freeze({
     list: (query: StockMovementQuery) => protectedCall<Page<StockMovementSummary>>('stock:list', query),
     getDashboard: () => protectedCall<DashboardSummary>('stock:getDashboard'),
     listActors: () => protectedCall<StockActorOption[]>('stock:listActors')
+  }),
+  settings: Object.freeze({
+    get: () => protectedCall<AppSettings>('settings:get'),
+    update: (input: Pick<AppSettings, 'storeName' | 'idleLockMinutes'>) => protectedCall<AppSettings>('settings:update', input)
+  }),
+  data: Object.freeze({
+    exportProducts: (query: ProductListQuery) => protectedCall<DataOperationResult>('data:exportProducts', query),
+    createBackup: () => protectedCall<DataOperationResult>('data:createBackup'),
+    inspectRestore: () => protectedCall<{ cancelled: boolean; candidate?: BackupCandidate }>('data:inspectRestore'),
+    applyRestore: (input: { candidateId: string; confirmation: string; password: string }) => protectedCall<{ backupPath: string } | { cancelled: true }>('data:applyRestore', input)
   })
 })
 contextBridge.exposeInMainWorld('storeApp', api)

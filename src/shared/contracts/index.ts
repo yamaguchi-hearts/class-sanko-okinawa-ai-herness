@@ -47,8 +47,11 @@ export type DashboardSummary = Readonly<{
   recentMovements: readonly StockMovementSummary[]
 }>
 export type RecordStockMovementResult = Readonly<{ currentStock: number; movement: StockMovementSummary }>
+export type AppSettings = Readonly<{ storeName: string; idleLockMinutes: number; databasePath: string }>
+export type DataOperationResult = Readonly<{ cancelled: boolean; path?: string; count?: number; backupId?: string; schemaVersion?: number }>
+export type BackupCandidate = Readonly<{ candidateId: string; storeName: string; createdAt: string | null; schemaVersion: number; userCount: number; productCount: number }>
 
-export type PublicErrorCode = 'VALIDATION_ERROR' | 'AUTH_REQUIRED' | 'AUTH_FAILED' | 'SESSION_EXPIRED' | 'ACCOUNT_LOCKED' | 'FORBIDDEN' | 'DUPLICATE_LOGIN' | 'DUPLICATE_SKU' | 'DUPLICATE_CATEGORY' | 'LAST_ADMIN_REQUIRED' | 'NOT_FOUND' | 'INACTIVE_ENTITY' | 'INSUFFICIENT_STOCK' | 'DATABASE_BUSY' | 'DATABASE_ERROR' | 'RECOVERY_REQUIRED'
+export type PublicErrorCode = 'VALIDATION_ERROR' | 'AUTH_REQUIRED' | 'AUTH_FAILED' | 'SESSION_EXPIRED' | 'ACCOUNT_LOCKED' | 'FORBIDDEN' | 'DUPLICATE_LOGIN' | 'DUPLICATE_SKU' | 'DUPLICATE_CATEGORY' | 'LAST_ADMIN_REQUIRED' | 'NOT_FOUND' | 'INACTIVE_ENTITY' | 'INSUFFICIENT_STOCK' | 'DATABASE_BUSY' | 'DATABASE_ERROR' | 'RECOVERY_REQUIRED' | 'BACKUP_INVALID' | 'BACKUP_FAILED' | 'RESTORE_FAILED'
 export type IpcResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: Readonly<{ code: PublicErrorCode; message: string }> }>
 
 export type SetupInput = Readonly<{ storeName: string; displayName: string; loginName: string; password: string; confirmPassword: string }>

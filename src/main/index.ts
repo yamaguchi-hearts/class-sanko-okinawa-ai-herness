@@ -10,6 +10,7 @@ import { AuthService } from './auth/service'
 import { registerIpc } from './ipc/register'
 import { CatalogService } from './services/catalog'
 import { InventoryService } from './services/inventory'
+import { MaintenanceService, cleanupRestoreCandidates, recoverInterruptedRestore } from './services/maintenance'
 
 const appId = 'jp.co.sanko-okinawa.store-inventory'
 app.setName('沖縄店舗在庫管理')
@@ -29,6 +30,7 @@ let finishingQuit = false
 let mainWindow: BrowserWindow | null = null
 let auth: AuthService | null = null
 let appDb: ReturnType<typeof openStoreDatabase> | null = null
+let dbClosedForRestore = false
 
 function isAllowedAppUrl(rawUrl: string): boolean {
   if (app.isPackaged) return rawUrl === pathToFileURL(resolve(__dirname, '../renderer/index.html')).href
@@ -69,7 +71,7 @@ app.on('web-contents-created', (_event, contents) => {
 
 app.on('before-quit', (event) => {
   if (finishingQuit || !releaseDataLock) {
-    if (finishingQuit) { appDb?.close(); appDb = null }
+    if (finishingQuit) { if (!dbClosedForRestore) appDb?.close(); appDb = null }
     return
   }
   event.preventDefault()
@@ -96,9 +98,17 @@ app.whenReady().then(async () => {
     app.quit()
     return
   }
-  appDb = openStoreDatabase(resolve(userData, 'store-inventory.sqlite'))
+  const databasePath = resolve(userData, 'store-inventory.sqlite')
+  await recoverInterruptedRestore(userData, databasePath)
+  await cleanupRestoreCandidates(userData)
+  appDb = openStoreDatabase(databasePath)
   auth = new AuthService(appDb)
-  registerIpc(auth, new CatalogService(appDb, auth), new InventoryService(appDb, auth), () => mainWindow?.webContents ?? null, isAllowedAppUrl)
+  const maintenance = new MaintenanceService(appDb, auth, userData, databasePath)
+  registerIpc(auth, new CatalogService(appDb, auth), new InventoryService(appDb, auth), () => mainWindow?.webContents ?? null, isAllowedAppUrl, maintenance, () => mainWindow, () => {
+    dbClosedForRestore = true
+    app.relaunch()
+    setTimeout(() => app.quit(), 100)
+  })
   setInterval(() => auth?.expireIdleSessions(), 5_000).unref()
   await createWindow()
 }).catch((error: unknown) => {
