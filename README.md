@@ -20,35 +20,35 @@ Plan、設計書、プロンプトは同じ案件の `<ID>-<slug>` で対応づ�
 
 アプリ骨格は TypeScript、React、Electron、electron-vite で構成し、DBと認証ハッシュの検証はMainプロセス内に限定しています。Rendererへ業務DB APIや認証回避口は公開していません。開発・検証コマンド:
 
-固定バージョンはNode.js 24.19.0/npm 11.17.0です。WindowsではPython 3とVisual Studio 2022の「Desktop development with C++」ツールチェーンを用意し、x64 Native Tools Command Promptから `npm ci` を実行してください。postinstallでbetter-sqlite3とargon2をElectron ABIへ再ビルドします。
+固定バージョンはNode.js 24.19.0/pnpm 10.26.1です。WindowsではPython 3とVisual Studio 2022の「Desktop development with C++」ツールチェーンを用意し、x64 Native Tools Command Promptから `pnpm install` を実行してください。postinstallでbetter-sqlite3 とargon2をElectron ABIへ再ビルドします。
 
 ```powershell
-npm ci
-npm run typecheck
-npm test
-npm run test:e2e
-npm run dev
-npm run build
-npm run dist:win
-npm run test:packaged
-npm run dist:recovery
+pnpm install --frozen-lockfile
+pnpm run typecheck
+pnpm test
+pnpm run test:e2e
+pnpm run dev
+pnpm run build
+pnpm run dist:win
+pnpm run test:packaged
+pnpm run dist:recovery
 ```
 
 `test:packaged` は `dist:win` の後に実行し、パッケージ化されたWindows x64アプリの隔離データ領域で終了・再起動後のSQLite読込とArgon2id照合を確認します。
 
-`npm run verify:desktop` を同じWindowsユーザー領域で2回実行すると、`%APPDATA%\沖縄店舗在庫管理\phase0-validation\persistence.sqlite` の再読込とArgon2id照合を確認できます。検証専用データは業務DBと分離しています。Playwrightは毎回一時userDataを使います。Windowsネイティブ依存の再ビルドは `npm run rebuild:native`、NSIS出力は `release/` に作られます。
+`pnpm run verify:desktop` を同じWindowsユーザー領域で2回実行すると、`%APPDATA%\沖縄店舗在庫管理\phase0-validation\persistence.sqlite` の再読込とArgon2id照合を確認できます。検証専用データは業務DBと分離しています。Playwrightは毎回一時userDataを使います。Windowsネイティブ依存の再ビルドは `pnpm run rebuild:native`、NSIS出力は `release/` に作られます。
 
 採用バージョン、KDF実測、Windows x64 NSISと永続化の確認結果は[Phase 0判断・検証記録](docs/specs/0003-store-inventory/delivery/decisions.md)に記録しています。テスト・ビルドでの失敗や未検証範囲は[検証記録](docs/specs/0003-store-inventory/delivery/verification.md)を参照してください。
 
 Phase 1では番号付きSQLite移行、初期ADMIN、Argon2idログイン、段階的な失敗待機、無操作ロック、本人のパスワード変更、ADMINによるユーザー発行と一度限りの再設定コードを実装しています。Phase 2では商品・カテゴリ・ユーザー管理と商品一覧を追加しました。Phase 3ではMainの在庫サービスに更新を集約し、入庫・出庫・棚卸、在庫履歴、ダッシュボードを追加しました。商品作成時の在庫は0で、商品編集から在庫を書き換えられません。内部セッショントークンはMainからPreloadへ渡し、Preload内に保持します。Rendererは型付きAPIのみ利用します。
 
-Phase 0〜3の主要確認は `npm run typecheck`、`npm test`（一時SQLite/サービス統合）、`npm run test:e2e`（開発版セットアップ・認証・カタログ・在庫変更・履歴）、`npm run dist:win` と `npm run test:packaged`（NSIS導入版のDB永続化・Argon2idログイン）です。各実行結果は[検証記録](docs/specs/0003-store-inventory/delivery/verification.md)にあります。
+Phase 0〜3の主要確認は `pnpm run typecheck`、`pnpm test`（一時SQLite/サービス統合）、`pnpm run test:e2e`（開発版セットアップ・認証・カタログ・在庫変更・履歴）、`pnpm run dist:win` と `pnpm run test:packaged`（NSIS導入版のDB永続化・Argon2idログイン）です。各実行結果は[検証記録](docs/specs/0003-store-inventory/delivery/verification.md)にあります。
 
 Phase 4の設定はADMINだけが変更できます。店舗名と無操作ロック時間（1〜60分、既定15分）を更新し、ロック時間短縮は最終本人操作時刻に照らして即時再評価します。商品一覧のCSV出力は画面の検索・カテゴリ・状態・在庫条件・ソートを保ち、一致する全件をUTF-8 BOM/CRLFで保存します。保存ダイアログのキャンセルも監査されます。Excelでの表示確認はWindows実機と対象Excel版で行い、結果を検証記録に残してください。
 
 ADMINは画面の「バックアップ・復元」から `.sqlite3` バックアップを作成できます。使用中DBの単純コピーはせずSQLite backup APIを使います。バックアップには商品、履歴、ユーザー情報が含まれ、暗号化されません。作成後はUSB等の別媒体へ定期的に複製し、保管先をWindowsアカウント/ディスク保護で管理してください。復元は候補検査、店舗名の再確認、ADMINパスワード再認可、現DBの事前バックアップ後に実施されます。成功するとアプリを再起動し、復元先DBの資格情報で再ログインします。復元された未使用の再設定コードは失効されます。
 
-全ADMINが利用できない場合、`npm run dist:recovery` で作成した `release/recovery/沖縄店舗在庫管理 管理者復旧ツール-<version>-win-x64.exe` を右クリックして「管理者として実行」します。アプリを終了し、対象の `store-inventory.sqlite` を選びます。ツールはアプリと同じuserDataディレクトリ排他ロックを取得し、対象店舗と既存の有効ADMINを確認してから、保存先を指定した検証済み事前バックアップを作ります。発行されたコードは一度だけ表示されるため、その場で対象者へ安全に渡してください。通常アプリのログイン画面から本人がコードで新しいパスワードを設定します。DB破損時はツールで検証済みバックアップを選択し、対象DBファイルの退避と段階マーカー付き入替を行います。自動復帰できない場合は業務アプリを起動せず、退避ファイルとマーカーを保持して管理者へ連絡してください。
+全ADMINが利用できない場合、`pnpm run dist:recovery` で作成した `release/recovery/沖縄店舗在庫管理 管理者復旧ツール-<version>-win-x64.exe` を右クリックして「管理者として実行」します。アプリを終了し、対象の `store-inventory.sqlite` を選びます。ツールはアプリと同じuserDataディレクトリ排他ロックを取得し、対象店舗と既存の有効ADMINを確認してから、保存先を指定した検証済み事前バックアップを作ります。発行されたコードは一度だけ表示されるため、その場で対象者へ安全に渡してください。通常アプリのログイン画面から本人がコードで新しいパスワードを設定します。DB破損時はツールで検証済みバックアップを選択し、対象DBファイルの退避と段階マーカー付き入替を行います。自動復帰できない場合は業務アプリを起動せず、退避ファイルとマーカーを保持して管理者へ連絡してください。
 
 Windowsユーザー別DBの既定場所は `%APPDATA%\沖縄店舗在庫管理\store-inventory.sqlite` です。別Windowsアカウントで昇格した場合は復旧ツールの対象選択で意図したアカウントのDBを指定してください。ローカル管理者やDBファイルへ直接アクセスできる者に対する完全な機密性・改ざん防止はありません。DBを直接編集しないでください。復旧exeの配布前には署名と実機の昇格・排他・本人再設定を確認してください。
 

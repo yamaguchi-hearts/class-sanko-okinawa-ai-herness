@@ -1,10 +1,10 @@
 {
   "name": "okinawa-store-inventory",
   "version": "0.1.0",
-  "packageManager": "npm@11.17.0",
+  "packageManager": "pnpm@10.26.1",
   "engines": {
     "node": "24.19.0",
-    "npm": "11.17.0"
+    "pnpm": "10.26.1"
   },
   "private": true,
   "description": "店舗向け商品在庫管理デスクトップアプリ",
@@ -17,11 +17,11 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "npm run build && playwright test tests/e2e/startup.spec.ts tests/e2e/authentication.spec.ts tests/e2e/maintenance.spec.ts",
+    "test:e2e": "pnpm run build && playwright test tests/e2e/startup.spec.ts tests/e2e/authentication.spec.ts tests/e2e/maintenance.spec.ts",
     "test:packaged": "playwright test tests/e2e/packaged.spec.ts",
     "rebuild:native": "electron-rebuild -f",
     "dist:win": "electron-builder --win nsis --x64",
-    "dist:recovery": "npm run build && electron-builder --config electron-builder.recovery.yml --win portable --x64",
+    "dist:recovery": "pnpm run build && electron-builder --config electron-builder.recovery.yml --win portable --x64",
     "verify:desktop": "electron . --phase0-verify"
   },
   "dependencies": {
@@ -79,8 +79,5 @@
       "allowToChangeInstallationDirectory": true,
       "deleteAppDataOnUninstall": false
     }
-  },
-  "allowScripts": {
-    "argon2@0.45.1": true
   }
 }
