@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import type { DashboardSummary, Page, RecordStockMovementInput, RecordStockMovementResult, Role, StockActorOption, StockMovementQuery, StockMovementSummary } from '../../shared/contracts'
-import { calculateStockChange } from '../../shared/domain/inventory'
+import { calculateStockChange, MAX_STOCK } from '../../shared/domain/inventory'
 import type { StoreDatabase } from '../db/connection'
 import { InventoryRepository } from '../db/repositories/inventory'
 import { AppError, AuthService } from '../auth/service'
-import { audit } from './audit'
+import { audit, type AuditActor } from './audit'
 
 export class InventoryService {
   private readonly repository: InventoryRepository
@@ -51,6 +51,28 @@ export class InventoryService {
       }
     }).immediate()
     return result
+  }
+
+  recordOpeningForNewProduct(productId: string, initialStock: number, actor: AuditActor): void {
+    if (!this.db.inTransaction) throw new Error('OPENING_REQUIRES_TRANSACTION')
+    if (!Number.isSafeInteger(initialStock) || initialStock < 1 || initialStock > MAX_STOCK) throw new AppError('VALIDATION_ERROR')
+    const product = this.repository.getProductForStock(productId)
+    if (!product || !product.is_active) throw new AppError('NOT_FOUND')
+    if (product.current_stock !== 0 || this.db.prepare('SELECT 1 FROM stock_movements WHERE product_id=? LIMIT 1').get(productId)) {
+      throw new AppError('VALIDATION_ERROR')
+    }
+    const movementId = randomUUID()
+    const createdAt = new Date(this.clock()).toISOString()
+    this.repository.updateCurrentStock(product.id, 0, initialStock, createdAt)
+    this.repository.insertMovement({
+      id: movementId, productId: product.id, type: 'OPENING', delta: initialStock,
+      before: 0, after: initialStock, reasonCode: 'OTHER', note: '商品登録時の初期在庫',
+      actorId: actor.id, actorLogin: actor.loginName, actorName: actor.displayName, createdAt
+    })
+    audit(this.db, 'STOCK_RECORDED', actor, 'stock_movement', movementId, {
+      productId: product.id, sku: product.sku, productName: product.name, type: 'OPENING',
+      quantityDelta: initialStock, stockBefore: 0, stockAfter: initialStock, reasonCode: 'OTHER'
+    })
   }
 
   list(token: string, senderId: number, query: StockMovementQuery): Page<StockMovementSummary> {

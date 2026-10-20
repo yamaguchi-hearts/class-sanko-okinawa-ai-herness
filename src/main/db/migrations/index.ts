@@ -116,5 +116,13 @@ export const migrations: readonly Migration[] = [
     up(db) {
       db.exec(`ALTER TABLE audit_logs ADD COLUMN actor_kind TEXT NOT NULL DEFAULT 'USER' CHECK (actor_kind IN ('USER','OFFLINE_RECOVERY','SYSTEM'))`)
     }
+  },
+  {
+    version: 6,
+    up(db) {
+      const duplicate = db.prepare("SELECT product_id FROM stock_movements WHERE movement_type='OPENING' GROUP BY product_id HAVING COUNT(*)>1 LIMIT 1").get()
+      if (duplicate) throw new Error('OPENING_MOVEMENT_DUPLICATES_EXIST')
+      db.exec("CREATE UNIQUE INDEX stock_movements_one_opening_per_product ON stock_movements(product_id) WHERE movement_type='OPENING'")
+    }
   }
 ]

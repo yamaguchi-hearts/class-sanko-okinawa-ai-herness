@@ -43,7 +43,7 @@ SessionViewは `user{id, loginName, displayName, role}`、`state(AUTHENTICATED/L
 
 ProductQueryはtrim済み検索、categoryId、低在庫/0在庫、状態（既定は有効）、許可ソートキーと方向、ページを持つ。StockMovementQueryはproductId、UTC期間の開始以上/終了未満、種別、actorUserId、ページを持つ。
 
-RecordStockMovementInputはRECEIPT/ISSUEなら正の `quantity`、ADJUSTMENTなら非負の `countedStock` の判別共用体とし、両方同時指定や未知フィールドによる在庫上書きを拒否する。OPENINGを追加する場合は管理者専用導線として別途契約を定める。初期版は作成時在庫0のみ。
+RecordStockMovementInputはRECEIPT/ISSUEなら正の `quantity`、ADJUSTMENTなら非負の `countedStock` の判別共用体とし、両方同時指定や未知フィールドによる在庫上書きを拒否する。0004ではCreateProductInputだけに初期在庫を追加し、商品編集DTOと一般 `stock.record` からは初期在庫/OPENINGを拒否する。
 
 ### 保守・ファイル操作
 

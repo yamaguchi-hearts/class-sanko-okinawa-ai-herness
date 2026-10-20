@@ -18,6 +18,7 @@ export type ProductSummary = Readonly<{
 export type CategorySummary = Readonly<{ id: string; name: string; isActive: boolean }>
 export type Page<T> = Readonly<{ items: readonly T[]; total: number; page: number; pageSize: number }>
 export type ProductDraft = Readonly<{ sku: string; name: string; categoryId: string | null; unit: string; reorderLevel: number; note: string | null }>
+export type CreateProductInput = ProductDraft & Readonly<{ initialStock: number }>
 export type UpdateProductInput = ProductDraft & Readonly<{ productId: string }>
 export type ProductListQuery = Readonly<{
   search: string; categoryId: string | null; status: ProductStatusFilter; stockFilter: ProductStockFilter

@@ -11,7 +11,7 @@
 | RECEIPT | quantity | delta=+quantity、stock_after=before+quantity |
 | ISSUE | quantity | delta=-quantity、afterが負なら拒否 |
 | ADJUSTMENT | countedStock | delta=countedStock-before、after=countedStock |
-| OPENING | 初期版は外部入力なし | 将来導線を作る場合のみ履歴を必須化 |
+| OPENING | 一般在庫APIでは入力不可。0004の新規商品作成内部ユースケースのみ | 初期在庫が正数の場合にbefore=0として一度だけ記録 |
 
 棚卸差分0も実施した記録として保存する。入出庫の0は拒否する。在庫上限超過は `VALIDATION_ERROR`、不足は `INSUFFICIENT_STOCK`、無効商品は `INACTIVE_ENTITY`。
 

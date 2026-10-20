@@ -172,7 +172,7 @@ export class MaintenanceService {
         const rawVersion = this.schemaVersion(candidate)
         const appType = candidate.prepare("SELECT value FROM app_meta WHERE key='app_type'").get() as {value:string}|undefined
         const integrity = candidate.pragma('integrity_check') as Array<{integrity_check:string}>
-        if (appType?.value !== APP_ID || rawVersion > 5 || integrity[0]?.integrity_check !== 'ok') throw new Error('incompatible backup')
+        if (appType?.value !== APP_ID || rawVersion > 6 || integrity[0]?.integrity_check !== 'ok') throw new Error('incompatible backup')
         createdAt = (candidate.prepare("SELECT value AS created FROM app_meta WHERE key='backup_created_at'").get() as { created: string } | undefined)?.created ?? (candidate.prepare('SELECT MIN(applied_at) AS created FROM schema_migrations').get() as { created: string | null }).created
       } finally { candidate.close() }
       const migrated = openStoreDatabase(copy)
@@ -251,7 +251,7 @@ export class MaintenanceService {
     const appType = db.prepare("SELECT value FROM app_meta WHERE key='app_type'").get() as { value: string } | undefined
     if (appType?.value !== APP_ID) throw new Error('wrong application')
     const version = this.schemaVersion(db)
-    if (version > 5 || version < 4) throw new Error('unsupported schema')
+    if (version > 6 || version < 4) throw new Error('unsupported schema')
     const versions = db.prepare('SELECT version FROM schema_migrations ORDER BY version').all() as Array<{version:number}>
     if (versions.length !== version || versions.some((row, index) => row.version !== index + 1)) throw new Error('incomplete migration history')
     const required = ['users','password_reset_codes','audit_logs','app_settings','categories','products','stock_movements']

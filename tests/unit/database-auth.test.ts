@@ -28,10 +28,10 @@ describe('Phase 1 database and identity foundation', () => {
     let first = openStoreDatabase(file)
     expect(first.pragma('foreign_keys', { simple: true })).toBe(1)
     expect(first.pragma('busy_timeout', { simple: true })).toBe(5000)
-    expect((first.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as { version: number }).version).toBe(5)
+    expect((first.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as { version: number }).version).toBe(6)
     first.close()
     first = openStoreDatabase(file)
-    expect((first.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get() as { count: number }).count).toBe(5)
+    expect((first.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get() as { count: number }).count).toBe(6)
     first.prepare('INSERT INTO schema_migrations(version,applied_at) VALUES(?,?)').run(99, new Date().toISOString())
     first.close()
     expect(() => openStoreDatabase(file)).toThrow(/DATABASE_FUTURE_VERSION/)
@@ -47,9 +47,27 @@ describe('Phase 1 database and identity foundation', () => {
     legacy.prepare("INSERT INTO app_meta(key,value) VALUES('app_type','jp.co.sanko-okinawa.store-inventory')").run()
     legacy.close()
     const migrated = openStoreDatabase(file)
-    expect((migrated.prepare('SELECT MAX(version) AS v FROM schema_migrations').get() as { v: number }).v).toBe(5)
+    expect((migrated.prepare('SELECT MAX(version) AS v FROM schema_migrations').get() as { v: number }).v).toBe(6)
     expect((migrated.prepare('SELECT value FROM app_meta WHERE key=\'app_type\'').get() as { value: string }).value).toContain('store-inventory')
     migrated.close()
+  })
+
+  it('refuses the opening index migration when legacy duplicate OPENING rows exist', () => {
+    const legacy = new Database(':memory:')
+    legacy.pragma('foreign_keys = ON')
+    try {
+      for (const migration of migrations.slice(0, 5)) migration.up(legacy)
+      legacy.prepare('INSERT INTO users(id,login_name,display_name,password_hash,role,created_at,updated_at) VALUES(?,?,?,?,?,?,?)')
+        .run('legacy-user', 'admin', '管理者', 'hash', 'ADMIN', new Date().toISOString(), new Date().toISOString())
+      legacy.prepare('INSERT INTO products(id,sku,name,name_search_key,category_id,unit,current_stock,reorder_level,note,is_active,created_at,updated_at) VALUES(?,?,?,?,NULL,?,0,0,NULL,1,?,?)')
+        .run('legacy-product', 'LEGACY', '旧商品', '旧商品', '個', new Date().toISOString(), new Date().toISOString())
+      const insert = legacy.prepare(`INSERT INTO stock_movements(id,product_id,movement_type,quantity_delta,stock_before,stock_after,reason_code,note,actor_user_id,actor_login_snapshot,actor_name_snapshot,created_at)
+        VALUES(?,?,'OPENING',1,0,1,'OTHER',NULL,?,?,?,?)`)
+      insert.run('opening-1', 'legacy-product', 'legacy-user', 'admin', '管理者', new Date().toISOString())
+      insert.run('opening-2', 'legacy-product', 'legacy-user', 'admin', '管理者', new Date().toISOString())
+      expect(() => migrations[5]!.up(legacy)).toThrow('OPENING_MOVEMENT_DUPLICATES_EXIST')
+      expect((legacy.prepare("SELECT COUNT(*) AS count FROM stock_movements WHERE movement_type='OPENING'").get() as { count: number }).count).toBe(2)
+    } finally { legacy.close() }
   })
 
   it('allows only one concurrent initial setup and persists the account across reopening', async () => {

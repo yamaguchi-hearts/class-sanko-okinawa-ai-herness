@@ -7,6 +7,7 @@ import lockfile from 'proper-lockfile'
 import { openStoreDatabase } from '../../src/main/db/connection'
 import { AuthService, AppError } from '../../src/main/auth/service'
 import { CatalogService } from '../../src/main/services/catalog'
+import { InventoryService } from '../../src/main/services/inventory'
 import { MaintenanceService, recoverInterruptedRestore, safeCsvText } from '../../src/main/services/maintenance'
 import type { ProductListQuery } from '../../src/shared/contracts'
 
@@ -33,10 +34,10 @@ describe('CSV/settings/backup maintenance', () => {
   it('exports every matching page with fixed BOM/columns and records an audit without changing source text', async () => {
     dir = mkdtempSync(join(tmpdir(), 'inventory-maintenance-'))
     db = openStoreDatabase(join(dir, 'store.sqlite'))
-    const auth = new AuthService(db), catalog = new CatalogService(db, auth)
+    const auth = new AuthService(db), inventory = new InventoryService(db, auth), catalog = new CatalogService(db, auth, inventory)
     const admin = await auth.setup({ storeName: '検証店', displayName: '管理者', loginName: 'admin', password: 'maintenance test password' }, 4)
-    catalog.createProduct(admin.token, 4, { sku: 'A', name: '=商品', categoryId: null, unit: '個', reorderLevel: 1, note: 'a,"b"\nc' })
-    catalog.createProduct(admin.token, 4, { sku: 'B', name: '通常商品', categoryId: null, unit: '箱', reorderLevel: 0, note: null })
+    catalog.createProduct(admin.token, 4, { sku: 'A', name: '=商品', categoryId: null, unit: '個', reorderLevel: 1, note: 'a,"b"\nc', initialStock: 0 })
+    catalog.createProduct(admin.token, 4, { sku: 'B', name: '通常商品', categoryId: null, unit: '箱', reorderLevel: 0, note: null, initialStock: 0 })
     const insert = db.prepare('INSERT INTO products(id,sku,name,name_search_key,category_id,unit,current_stock,reorder_level,note,is_active,created_at,updated_at) VALUES(?,?,?, ?,NULL,?,0,0,NULL,1,?,?)')
     const timestamp = new Date().toISOString()
     for (let i = 0; i < 205; i++) insert.run(`test-product-${i}`, `TEST-${i}`, `追加商品${i}`, `追加商品${i}`, '個', timestamp, timestamp)
@@ -70,7 +71,7 @@ describe('CSV/settings/backup maintenance', () => {
     expect(() => service.updateSettings(staff.token, 5, { storeName: '禁止', idleLockMinutes: 5 })).toThrowError(AppError)
     const output = join(dir, 'backup.sqlite3')
     const backup = await service.createBackup(admin.token, 4, output)
-    expect(backup.schemaVersion).toBe(5)
+    expect(backup.schemaVersion).toBe(6)
     const restored = new Database(output, { readonly: true, fileMustExist: true })
     expect(restored.pragma('integrity_check')).toMatchObject([{ integrity_check: 'ok' }])
     expect((restored.prepare("SELECT value FROM app_meta WHERE key='store_name'").get() as {value:string}).value).toBe('設定後')

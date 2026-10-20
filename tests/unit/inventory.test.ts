@@ -22,13 +22,14 @@ async function setup(clock: () => number = Date.now): Promise<void> {
   dir = mkdtempSync(join(tmpdir(), 'inventory-stock-'))
   db = openStoreDatabase(join(dir, 'store.sqlite'))
   auth = new AuthService(db, clock)
-  catalog = new CatalogService(db, auth, clock)
   inventory = new InventoryService(db, auth, clock)
+  catalog = new CatalogService(db, auth, inventory, clock)
   const admin = await auth.setup({ storeName: '検証店舗', displayName: '管理者', loginName: 'admin', password: 'inventory test passphrase' }, 1)
   adminToken = admin.token
 }
 
 const draft = (patch: Partial<ProductDraft> = {}): ProductDraft => ({ sku: 'STOCK-1', name: '在庫商品', categoryId: null, unit: '個', reorderLevel: 1, note: null, ...patch })
+const createProduct = (patch: Partial<ProductDraft> = {}, initialStock = 0) => catalog.createProduct(adminToken, 1, { ...draft(patch), initialStock })
 const query = (patch: Partial<StockMovementQuery> = {}): StockMovementQuery => ({ productId: null, startAt: null, endAt: null, type: null, actorUserId: null, page: 1, pageSize: 50, ...patch })
 const record = (productId: string, patch: Partial<RecordStockMovementInput> & { type: 'RECEIPT' | 'ISSUE'; quantity?: number } = { type: 'RECEIPT', quantity: 1 }): RecordStockMovementInput => ({
   productId, type: patch.type, quantity: patch.quantity ?? 1, reasonCode: patch.reasonCode ?? 'OTHER', note: patch.note ?? null
@@ -64,7 +65,7 @@ describe('inventory domain and persistence', () => {
 
   it('records receipt, exact issue and zero adjustment from latest database stock', async () => {
     await setup()
-    const product = catalog.createProduct(adminToken, 1, draft())
+    const product = createProduct()
     const received = inventory.record(adminToken, 1, record(product.id, { type: 'RECEIPT', quantity: 3, reasonCode: 'DELIVERY' }))
     expect(received).toMatchObject({ currentStock: 3, movement: { stockBefore: 0, quantityDelta: 3, stockAfter: 3 } })
     const firstIssue = inventory.record(adminToken, 1, record(product.id, { type: 'ISSUE', quantity: 2, reasonCode: 'OTHER' }))
@@ -75,13 +76,13 @@ describe('inventory domain and persistence', () => {
     expect(count).toMatchObject({ currentStock: 0, movement: { quantityDelta: 0, stockBefore: 0, stockAfter: 0 } })
     expect(db!.prepare('SELECT current_stock FROM products WHERE id=?').get(product.id)).toMatchObject({ current_stock: 0 })
     expect(inventory.list(adminToken, 1, query({ productId: product.id })).total).toBe(4)
-    const noMinimum = catalog.createProduct(adminToken, 1, draft({ sku: 'STOCK-2', reorderLevel: 0 }))
+    const noMinimum = createProduct({ sku: 'STOCK-2', reorderLevel: 0 })
     expect(inventory.record(adminToken, 1, { productId: noMinimum.id, type: 'ADJUSTMENT', countedStock: 0, reasonCode: 'STOCKTAKE', note: null }).movement.quantityDelta).toBe(0)
-    const atMinimum = catalog.createProduct(adminToken, 1, draft({ sku: 'STOCK-3', reorderLevel: 2 }))
+    const atMinimum = createProduct({ sku: 'STOCK-3', reorderLevel: 2 })
     inventory.record(adminToken, 1, { productId: atMinimum.id, type: 'ADJUSTMENT', countedStock: 2, reasonCode: 'STOCKTAKE', note: null })
-    const overMinimum = catalog.createProduct(adminToken, 1, draft({ sku: 'STOCK-4', reorderLevel: 1 }))
+    const overMinimum = createProduct({ sku: 'STOCK-4', reorderLevel: 1 })
     inventory.record(adminToken, 1, { productId: overMinimum.id, type: 'ADJUSTMENT', countedStock: 2, reasonCode: 'STOCKTAKE', note: null })
-    const inactive = catalog.createProduct(adminToken, 1, draft({ sku: 'STOCK-5', reorderLevel: 2 }))
+    const inactive = createProduct({ sku: 'STOCK-5', reorderLevel: 2 })
     catalog.deactivateProduct(adminToken, 1, inactive.id)
     expect(inventory.dashboard(adminToken, 1)).toMatchObject({ registeredProductCount: 5, activeProductCount: 4, lowStockProductCount: 2, zeroStockProductCount: 2 })
     expect(catalog.listProducts(adminToken, 1, { search: '', categoryId: null, status: 'ACTIVE', stockFilter: 'LOW', sortKey: 'name', direction: 'asc', page: 1, pageSize: 50 }).items.map((item) => item.id)).toEqual([product.id, atMinimum.id])
@@ -90,7 +91,7 @@ describe('inventory domain and persistence', () => {
 
   it('rejects shortage, disabled products and out-of-range adjustments without writes', async () => {
     await setup()
-    const product = catalog.createProduct(adminToken, 1, draft())
+    const product = createProduct()
     expect(() => inventory.record(adminToken, 1, record(product.id, { type: 'ISSUE', quantity: 1 }))).toThrowError(AppError)
     inventory.record(adminToken, 1, { productId: product.id, type: 'ADJUSTMENT', countedStock: MAX_STOCK, reasonCode: 'STOCKTAKE', note: null })
     expect(() => inventory.record(adminToken, 1, record(product.id, { type: 'RECEIPT', quantity: 1 }))).toThrowError(AppError)
@@ -101,7 +102,7 @@ describe('inventory domain and persistence', () => {
 
   it('rolls back product, movement and audit when movement or audit insertion fails', async () => {
     await setup()
-    const product = catalog.createProduct(adminToken, 1, draft())
+    const product = createProduct()
     const beforeAudit = Number((db!.prepare('SELECT COUNT(*) AS n FROM audit_logs WHERE action=\'STOCK_RECORDED\'').get() as { n: number }).n)
     db!.exec(`CREATE TRIGGER reject_movement BEFORE INSERT ON stock_movements BEGIN SELECT RAISE(ABORT,'movement failure'); END`)
     expect(() => inventory.record(adminToken, 1, record(product.id))).toThrow()
@@ -118,7 +119,7 @@ describe('inventory domain and persistence', () => {
   it('keeps actor snapshots after rename/deactivation and applies inclusive UTC start/exclusive end filters', async () => {
     let now = Date.parse('2026-01-01T23:59:59.999Z')
     await setup(() => now)
-    const product = catalog.createProduct(adminToken, 1, draft())
+    const product = createProduct()
     const staff = await auth.createUser(adminToken, 1, { loginName: 'worker', displayName: '記録時の担当', role: 'STAFF' })
     const reset = await auth.beginPasswordReset('worker', staff.code, 2)
     await auth.completePasswordReset(reset.token, 2, 'worker inventory passphrase')

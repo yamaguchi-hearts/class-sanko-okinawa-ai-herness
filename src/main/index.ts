@@ -104,7 +104,9 @@ app.whenReady().then(async () => {
   appDb = openStoreDatabase(databasePath)
   auth = new AuthService(appDb)
   const maintenance = new MaintenanceService(appDb, auth, userData, databasePath)
-  registerIpc(auth, new CatalogService(appDb, auth), new InventoryService(appDb, auth), () => mainWindow?.webContents ?? null, isAllowedAppUrl, maintenance, () => mainWindow, () => {
+  const inventory = new InventoryService(appDb, auth)
+  const catalog = new CatalogService(appDb, auth, inventory)
+  registerIpc(auth, catalog, inventory, () => mainWindow?.webContents ?? null, isAllowedAppUrl, maintenance, () => mainWindow, () => {
     dbClosedForRestore = true
     app.relaunch()
     setTimeout(() => app.quit(), 100)

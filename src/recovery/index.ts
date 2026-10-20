@@ -13,7 +13,7 @@ import { auditOfflineRecovery } from '../main/services/audit'
 import { openStoreDatabase } from '../main/db/connection'
 
 const APP_ID = 'jp.co.sanko-okinawa.store-inventory'
-const latestSchema = 5
+const latestSchema = 6
 type Admin = { id: string; login_name: string; display_name: string }
 
 function elevated(): boolean {

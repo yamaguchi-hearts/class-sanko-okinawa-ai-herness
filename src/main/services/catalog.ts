@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import type { CategorySummary, Page, ProductDraft, ProductListQuery, ProductSummary, Role, UpdateCategoryInput, UpdateProductInput } from '../../shared/contracts'
+import type { CategorySummary, CreateProductInput, Page, ProductListQuery, ProductSummary, Role, UpdateCategoryInput, UpdateProductInput } from '../../shared/contracts'
 import type { StoreDatabase } from '../db/connection'
 import { CatalogRepository } from '../db/repositories/catalog'
 import { AppError, AuthService } from '../auth/service'
 import { audit, type AuditActor } from './audit'
+import type { InventoryService } from './inventory'
 
 function translateConstraint(error: unknown, entity: 'product' | 'category'): never {
   const message = error instanceof Error ? error.message : ''
@@ -13,7 +14,7 @@ function translateConstraint(error: unknown, entity: 'product' | 'category'): ne
 
 export class CatalogService {
   private readonly repository: CatalogRepository
-  constructor(private readonly db: StoreDatabase, private readonly auth: AuthService, private readonly clock: () => number = Date.now) {
+  constructor(private readonly db: StoreDatabase, private readonly auth: AuthService, private readonly inventory: InventoryService, private readonly clock: () => number = Date.now) {
     this.repository = new CatalogRepository(db)
   }
   private now(): string { return new Date(this.clock()).toISOString() }
@@ -33,7 +34,8 @@ export class CatalogService {
     this.auth.canUseProtected(token, senderId)
     return this.repository.listCategories(includeInactive)
   }
-  createProduct(token: string, senderId: number, input: ProductDraft): ProductSummary {
+  createProduct(token: string, senderId: number, input: CreateProductInput): ProductSummary {
+    if (!Number.isSafeInteger(input.initialStock) || input.initialStock < 0 || input.initialStock > 2_147_483_647) throw new AppError('VALIDATION_ERROR')
     const actor = this.requireActor(token, senderId, 'ADMIN')
     const id = randomUUID(); const now = this.now(); const sku = input.sku.trim(); const name = input.name.trim()
     try {
@@ -46,6 +48,7 @@ export class CatalogService {
         this.db.prepare(`INSERT INTO products(id,sku,name,name_search_key,category_id,unit,current_stock,reorder_level,note,is_active,created_at,updated_at)
           VALUES(?,?,?,?,?,?,0,?,?,1,?,?)`).run(id, sku, name, name.toLowerCase(), input.categoryId, input.unit.trim(), input.reorderLevel, input.note?.trim() || null, now, now)
         audit(this.db, 'PRODUCT_CREATED', actor, 'product', id, { sku, name, categoryId: input.categoryId, unit: input.unit.trim(), reorderLevel: input.reorderLevel })
+        if (input.initialStock > 0) this.inventory.recordOpeningForNewProduct(id, input.initialStock, actor)
       }).immediate()
     } catch (error) { translateConstraint(error, 'product') }
     const product = this.repository.getProduct(id)

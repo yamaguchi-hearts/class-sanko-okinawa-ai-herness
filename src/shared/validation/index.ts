@@ -1,4 +1,4 @@
-import type { CreateUserInput, LoginInput, NewPasswordInput, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSortKey, ProductStatusFilter, ProductStockFilter, RecordStockMovementInput, ResetInput, Role, SetupInput, StockMovementQuery, StockMovementType, StockReasonCode, UpdateCategoryInput, UpdateProductInput, UpdateUserInput } from '../contracts'
+import type { CreateProductInput, CreateUserInput, LoginInput, NewPasswordInput, PasswordChangeInput, ProductListQuery, ProductSortKey, ProductStatusFilter, ProductStockFilter, RecordStockMovementInput, ResetInput, Role, SetupInput, StockMovementQuery, StockMovementType, StockReasonCode, UpdateCategoryInput, UpdateProductInput, UpdateUserInput } from '../contracts'
 
 export type ValidationIssue = Readonly<{ path: string; message: string }>
 export type ValidationResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; issues: readonly ValidationIssue[] }>
@@ -85,7 +85,10 @@ const productFields = {
   sku: productSku, name: productName, categoryId: (v: Record<string, unknown>) => uuidField(v, 'categoryId'),
   unit: unitField, reorderLevel, note: noteField
 }
-export const validateCreateProduct = (v: unknown) => parse<ProductDraft>(v, productFields, ['sku', 'name', 'categoryId', 'unit', 'reorderLevel', 'note'])
+export const validateCreateProduct = (v: unknown) => parse<CreateProductInput>(v, {
+  ...productFields,
+  initialStock: (x) => Number.isSafeInteger(x.initialStock) && (x.initialStock as number) >= 0 && (x.initialStock as number) <= 2_147_483_647 ? x.initialStock : undefined
+}, ['sku', 'name', 'categoryId', 'unit', 'reorderLevel', 'note', 'initialStock'])
 export const validateUpdateProduct = (v: unknown) => parse<UpdateProductInput>(v, {
   ...productFields,
   productId: (x) => typeof x.productId === 'string' && /^[0-9a-f-]{36}$/i.test(x.productId) ? x.productId : undefined

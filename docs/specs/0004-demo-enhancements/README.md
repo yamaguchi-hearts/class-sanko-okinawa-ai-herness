@@ -5,7 +5,7 @@
 - [Plan](../../plans/0004-demo-enhancements.md)
 - [基本設計0003](../0003-store-inventory/README.md)
 - [実装プロンプト](../../prompts/0004-demo-enhancements/README.md)
-- 状態: R-PNPM/R-LINTとR-DEMOは実装・検証済み。R-OPENING/R-IMAGEおよび横断統合検証は未完了。
+- 状態: R-PNPM/R-LINT/R-DEMO/R-OPENINGは実装・検証済み。R-IMAGEと横断統合検証は未完了。
 
 ## 要求対応
 

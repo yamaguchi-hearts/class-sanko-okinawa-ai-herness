@@ -48,7 +48,7 @@ Windowsのクリーン導入にはVisual C++ツールチェーンが必要です
 
 採用バージョン、KDF実測、Windows x64 NSISと永続化の確認結果は[Phase 0判断・検証記録](docs/specs/0003-store-inventory/delivery/decisions.md)に記録しています。テスト・ビルドでの失敗や未検証範囲は[検証記録](docs/specs/0003-store-inventory/delivery/verification.md)を参照してください。
 
-Phase 1では番号付きSQLite移行、初期ADMIN、Argon2idログイン、段階的な失敗待機、無操作ロック、本人のパスワード変更、ADMINによるユーザー発行と一度限りの再設定コードを実装しています。Phase 2では商品・カテゴリ・ユーザー管理と商品一覧を追加しました。Phase 3ではMainの在庫サービスに更新を集約し、入庫・出庫・棚卸、在庫履歴、ダッシュボードを追加しました。商品作成時の在庫は0で、商品編集から在庫を書き換えられません。内部セッショントークンはMainからPreloadへ渡し、Preload内に保持します。Rendererは型付きAPIのみ利用します。
+Phase 1では番号付きSQLite移行、初期ADMIN、Argon2idログイン、段階的な失敗待機、無操作ロック、本人のパスワード変更、ADMINによるユーザー発行と一度限りの再設定コードを実装しています。Phase 2では商品・カテゴリ・ユーザー管理と商品一覧を追加しました。Phase 3ではMainの在庫サービスに更新を集約し、入庫・出庫・棚卸、在庫履歴、ダッシュボードを追加しました。0004のDEMO拡張では商品新規登録時に既定0の初期在庫を設定でき、正数はOPENING履歴・監査へ一度だけ記録されます。商品編集や一般在庫APIから在庫/初期在庫を書き換えられません。内部セッショントークンはMainからPreloadへ渡し、Preload内に保持します。Rendererは型付きAPIのみ利用します。
 
 このDEMO版で新しく設定するパスワードは、初期セットアップ・本人変更・再設定とも4〜128 Unicodeコードポイントです。入力値のtrimやUnicode正規化は行いません。ログイン・ロック解除・現在パスワードの照合では既存パスワードを継続利用できます。詳細は[DEMOパスワード要件](docs/specs/0004-demo-enhancements/requirements/demo-password.md)を参照してください。
 
