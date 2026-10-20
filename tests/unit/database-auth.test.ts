@@ -6,6 +6,7 @@ import { openStoreDatabase } from '../../src/main/db/connection'
 import { AppError, AuthService } from '../../src/main/auth/service'
 import { migrations } from '../../src/main/db/migrations'
 import Database from 'better-sqlite3'
+import { validateNewPassword, validateSetup } from '../../src/shared/validation'
 
 let dir = ''
 let db: ReturnType<typeof openStoreDatabase> | null = null
@@ -22,16 +23,24 @@ function setupDb(): AuthService {
 const setupInput = { storeName: '検証店舗', displayName: '管理者', loginName: 'Admin', password: 'correct horse battery', confirmPassword: 'correct horse battery' }
 
 describe('Phase 1 database and identity foundation', () => {
+  it('uses the DEMO password policy for new credentials while preserving Unicode code points', () => {
+    expect(validateNewPassword({ password: 'abc', confirmPassword: 'abc' }).ok).toBe(false)
+    expect(validateNewPassword({ password: 'abcd', confirmPassword: 'abcd' }).ok).toBe(true)
+    expect(validateNewPassword({ password: '😀😀😀😀', confirmPassword: '😀😀😀😀' }).ok).toBe(true)
+    expect(validateNewPassword({ password: 'a'.repeat(128), confirmPassword: 'a'.repeat(128) }).ok).toBe(true)
+    expect(validateNewPassword({ password: 'a'.repeat(129), confirmPassword: 'a'.repeat(129) }).ok).toBe(false)
+    expect(validateSetup({ ...setupInput, password: 'abcd', confirmPassword: 'abcd' }).ok).toBe(true)
+  })
   it('runs numbered migrations once, enables constraints, and refuses a future schema', () => {
     dir = mkdtempSync(join(tmpdir(), 'inventory-migration-'))
     const file = join(dir, 'store.sqlite')
     let first = openStoreDatabase(file)
     expect(first.pragma('foreign_keys', { simple: true })).toBe(1)
     expect(first.pragma('busy_timeout', { simple: true })).toBe(5000)
-    expect((first.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as { version: number }).version).toBe(5)
+    expect((first.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as { version: number }).version).toBe(7)
     first.close()
     first = openStoreDatabase(file)
-    expect((first.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get() as { count: number }).count).toBe(5)
+    expect((first.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get() as { count: number }).count).toBe(7)
     first.prepare('INSERT INTO schema_migrations(version,applied_at) VALUES(?,?)').run(99, new Date().toISOString())
     first.close()
     expect(() => openStoreDatabase(file)).toThrow(/DATABASE_FUTURE_VERSION/)
@@ -47,7 +56,7 @@ describe('Phase 1 database and identity foundation', () => {
     legacy.prepare("INSERT INTO app_meta(key,value) VALUES('app_type','jp.co.sanko-okinawa.store-inventory')").run()
     legacy.close()
     const migrated = openStoreDatabase(file)
-    expect((migrated.prepare('SELECT MAX(version) AS v FROM schema_migrations').get() as { v: number }).v).toBe(5)
+    expect((migrated.prepare('SELECT MAX(version) AS v FROM schema_migrations').get() as { v: number }).v).toBe(7)
     expect((migrated.prepare('SELECT value FROM app_meta WHERE key=\'app_type\'').get() as { value: string }).value).toContain('store-inventory')
     migrated.close()
   })

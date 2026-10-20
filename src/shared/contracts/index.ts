@@ -14,11 +14,16 @@ export type ProductSortKey = 'name' | 'sku' | 'currentStock' | 'reorderLevel'
 export type ProductSummary = Readonly<{
   id: string; sku: string; name: string; categoryId: string | null; categoryName: string | null; categoryActive: boolean | null
   unit: string; currentStock: number; reorderLevel: number; note: string | null; isActive: boolean; createdAt: string; updatedAt: string
+  hasImage: boolean; imageUpdatedAt: string | null
 }>
 export type CategorySummary = Readonly<{ id: string; name: string; isActive: boolean }>
 export type Page<T> = Readonly<{ items: readonly T[]; total: number; page: number; pageSize: number }>
 export type ProductDraft = Readonly<{ sku: string; name: string; categoryId: string | null; unit: string; reorderLevel: number; note: string | null }>
-export type UpdateProductInput = ProductDraft & Readonly<{ productId: string }>
+export type ProductImageChange = Readonly<{ kind: 'KEEP' }> | Readonly<{ kind: 'REMOVE' }> | Readonly<{ kind: 'REPLACE'; selectionId: string }>
+export type ProductImageSelection = Readonly<{ selectionId: string; width: number; height: number; previewDataUrl: string }>
+export type ProductImageResult = Readonly<{ dataUrl: string; updatedAt: string }>
+export type CreateProductInput = ProductDraft & Readonly<{ initialStock: number; imageSelectionId: string | null }>
+export type UpdateProductInput = ProductDraft & Readonly<{ productId: string; imageChange: ProductImageChange }>
 export type ProductListQuery = Readonly<{
   search: string; categoryId: string | null; status: ProductStatusFilter; stockFilter: ProductStockFilter
   sortKey: ProductSortKey; direction: 'asc' | 'desc'; page: number; pageSize: number

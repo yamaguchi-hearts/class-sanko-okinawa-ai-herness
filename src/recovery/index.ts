@@ -11,9 +11,10 @@ import { userInfo } from 'node:os'
 import { issueResetCode } from '../main/auth/reset-code'
 import { auditOfflineRecovery } from '../main/services/audit'
 import { openStoreDatabase } from '../main/db/connection'
+import { migrations } from '../main/db/migrations'
 
 const APP_ID = 'jp.co.sanko-okinawa.store-inventory'
-const latestSchema = 5
+const latestSchema = migrations.at(-1)?.version ?? 0
 type Admin = { id: string; login_name: string; display_name: string }
 
 function elevated(): boolean {
@@ -27,7 +28,7 @@ function validate(db: Database.Database): void {
   const tables = new Set((db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{name:string}>).map((x) => x.name))
   if (appType !== APP_ID) throw new Error('別アプリのデータベースです。')
   if (version > latestSchema) throw new Error('データベースがツールより新しい版です。新しい復旧ツールを使用してください。')
-  if (version !== latestSchema || ['users','password_reset_codes','audit_logs','app_settings','categories','products','stock_movements'].some((n) => !tables.has(n))) throw new Error('このアプリの対応済みデータベースではありません。')
+  if (version !== latestSchema || ['users','password_reset_codes','audit_logs','app_settings','categories','products','stock_movements','product_images'].some((n) => !tables.has(n))) throw new Error('このアプリの対応済みデータベースではありません。')
   const versions = db.prepare('SELECT version FROM schema_migrations ORDER BY version').all() as Array<{version:number}>
   if (versions.length !== latestSchema || versions.some((row, index) => row.version !== index + 1)) throw new Error('マイグレーション履歴が不完全です。')
   const auditColumns = new Set((db.prepare('PRAGMA table_info(audit_logs)').all() as Array<{name:string}>).map((column) => column.name))

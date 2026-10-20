@@ -8,7 +8,7 @@ import { CatalogService } from '../../src/main/services/catalog'
 import { InventoryService } from '../../src/main/services/inventory'
 import { calculateStockChange, isLowStock, isZeroStock, localDateRangeToUtc, MAX_STOCK } from '../../src/shared/domain/inventory'
 import { validateRecordStockMovement, validateStockMovementQuery } from '../../src/shared/validation'
-import type { ProductDraft, RecordStockMovementInput, StockMovementQuery } from '../../src/shared/contracts'
+import type { CreateProductInput, RecordStockMovementInput, StockMovementQuery } from '../../src/shared/contracts'
 
 let dir = ''
 let db: ReturnType<typeof openStoreDatabase> | null = null
@@ -28,7 +28,7 @@ async function setup(clock: () => number = Date.now): Promise<void> {
   adminToken = admin.token
 }
 
-const draft = (patch: Partial<ProductDraft> = {}): ProductDraft => ({ sku: 'STOCK-1', name: '在庫商品', categoryId: null, unit: '個', reorderLevel: 1, note: null, ...patch })
+const draft = (patch: Partial<CreateProductInput> = {}): CreateProductInput => ({ sku: 'STOCK-1', name: '在庫商品', categoryId: null, unit: '個', reorderLevel: 1, note: null, initialStock: 0, imageSelectionId: null, ...patch })
 const query = (patch: Partial<StockMovementQuery> = {}): StockMovementQuery => ({ productId: null, startAt: null, endAt: null, type: null, actorUserId: null, page: 1, pageSize: 50, ...patch })
 const record = (productId: string, patch: Partial<RecordStockMovementInput> & { type: 'RECEIPT' | 'ISSUE'; quantity?: number } = { type: 'RECEIPT', quantity: 1 }): RecordStockMovementInput => ({
   productId, type: patch.type, quantity: patch.quantity ?? 1, reasonCode: patch.reasonCode ?? 'OTHER', note: patch.note ?? null

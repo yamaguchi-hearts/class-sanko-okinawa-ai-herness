@@ -116,5 +116,30 @@ export const migrations: readonly Migration[] = [
     up(db) {
       db.exec(`ALTER TABLE audit_logs ADD COLUMN actor_kind TEXT NOT NULL DEFAULT 'USER' CHECK (actor_kind IN ('USER','OFFLINE_RECOVERY','SYSTEM'))`)
     }
+  },
+  {
+    version: 6,
+    up(db) {
+      db.exec(`
+        CREATE UNIQUE INDEX stock_movements_one_opening_per_product
+          ON stock_movements(product_id)
+          WHERE movement_type='OPENING';
+      `)
+    }
+  },
+  {
+    version: 7,
+    up(db) {
+      db.exec(`
+        CREATE TABLE product_images (
+          product_id TEXT PRIMARY KEY REFERENCES products(id) ON DELETE RESTRICT,
+          content BLOB NOT NULL CHECK(typeof(content)='blob' AND length(content) BETWEEN 1 AND 5242880),
+          mime_type TEXT NOT NULL CHECK(mime_type='image/png'),
+          width INTEGER NOT NULL CHECK(typeof(width)='integer' AND width BETWEEN 1 AND 4096),
+          height INTEGER NOT NULL CHECK(typeof(height)='integer' AND height BETWEEN 1 AND 4096),
+          updated_at TEXT NOT NULL
+        );
+      `)
+    }
   }
 ]

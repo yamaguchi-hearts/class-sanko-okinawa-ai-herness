@@ -14,7 +14,7 @@ test('ADMIN manages idle-lock settings from the sandboxed app and reads its data
     await window.getByLabel('店舗名').fill('設定E2E店')
     await window.getByLabel('管理者表示名').fill('設定管理者')
     await window.getByLabel('ログインID').fill('settings-admin')
-    await window.getByLabel('パスワード（12〜128文字）').fill('settings e2e passphrase')
+    await window.getByLabel('パスワード（4〜128文字）').fill('settings e2e passphrase')
     await window.getByLabel('パスワード（確認）').fill('settings e2e passphrase')
     await window.getByRole('button', { name: '初期設定を完了' }).click()
     await window.getByRole('button', { name: '設定', exact: true }).click()

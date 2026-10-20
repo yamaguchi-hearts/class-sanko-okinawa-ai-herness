@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import type { AppSettings, BackupCandidate, CategorySummary, CreateUserInput, DashboardSummary, DataOperationResult, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSummary, RecordStockMovementInput, RecordStockMovementResult, ResetInput, SessionView, SetupInput, StockActorOption, StockMovementQuery, StockMovementSummary, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
+import type { AppSettings, BackupCandidate, CategorySummary, CreateProductInput, CreateUserInput, DashboardSummary, DataOperationResult, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductImageResult, ProductImageSelection, ProductListQuery, ProductSummary, RecordStockMovementInput, RecordStockMovementResult, ResetInput, SessionView, SetupInput, StockActorOption, StockMovementQuery, StockMovementSummary, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
 
 declare global {
   interface Window {
@@ -23,9 +23,14 @@ declare global {
       }
       products: {
         list(query: ProductListQuery): Promise<IpcResult<Page<ProductSummary>>>
-        create(input: ProductDraft): Promise<IpcResult<ProductSummary>>
+        create(input: CreateProductInput): Promise<IpcResult<ProductSummary>>
         update(input: UpdateProductInput): Promise<IpcResult<ProductSummary>>
         deactivate(productId: string): Promise<IpcResult<null>>
+      }
+      productImages: {
+        select(): Promise<IpcResult<ProductImageSelection | { cancelled: true }>>
+        discardSelection(selectionId: string): Promise<IpcResult<null>>
+        get(productId: string, variant: 'THUMBNAIL' | 'DETAIL'): Promise<IpcResult<ProductImageResult | null>>
       }
       categories: {
         list(includeInactive?: boolean): Promise<IpcResult<CategorySummary[]>>

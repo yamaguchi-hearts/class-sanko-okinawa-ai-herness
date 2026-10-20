@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, BackupCandidate, CategorySummary, CreateUserInput, DashboardSummary, DataOperationResult, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSummary, RecordStockMovementInput, RecordStockMovementResult, ResetInput, SessionView, SetupInput, StockActorOption, StockMovementQuery, StockMovementSummary, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
+import type { AppSettings, BackupCandidate, CategorySummary, CreateProductInput, CreateUserInput, DashboardSummary, DataOperationResult, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductImageResult, ProductImageSelection, ProductListQuery, ProductSummary, RecordStockMovementInput, RecordStockMovementResult, ResetInput, SessionView, SetupInput, StockActorOption, StockMovementQuery, StockMovementSummary, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
 
 let internalToken: string | null = null
 type TokenResponse = IpcResult<{ session: SessionView; internalToken: string }>
@@ -35,9 +35,14 @@ const api = Object.freeze({
   }),
   products: Object.freeze({
     list: (query: ProductListQuery) => protectedCall<Page<ProductSummary>>('products:list', query),
-    create: (input: ProductDraft) => protectedCall<ProductSummary>('products:create', input),
+    create: (input: CreateProductInput) => protectedCall<ProductSummary>('products:create', input),
     update: (input: UpdateProductInput) => protectedCall<ProductSummary>('products:update', input),
     deactivate: (productId: string) => protectedCall<null>('products:deactivate', productId)
+  }),
+  productImages: Object.freeze({
+    select: () => protectedCall<ProductImageSelection | { cancelled: true }>('productImages:select'),
+    discardSelection: (selectionId: string) => protectedCall<null>('productImages:discardSelection', selectionId),
+    get: (productId: string, variant: 'THUMBNAIL' | 'DETAIL') => protectedCall<ProductImageResult | null>('productImages:get', { productId, variant })
   }),
   categories: Object.freeze({
     list: (includeInactive = false) => protectedCall<CategorySummary[]>('categories:list', { includeInactive }),

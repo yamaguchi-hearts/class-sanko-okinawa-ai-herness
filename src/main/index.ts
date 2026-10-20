@@ -11,6 +11,7 @@ import { registerIpc } from './ipc/register'
 import { CatalogService } from './services/catalog'
 import { InventoryService } from './services/inventory'
 import { MaintenanceService, cleanupRestoreCandidates, recoverInterruptedRestore } from './services/maintenance'
+import { ProductImagesService } from './services/product-images'
 
 const appId = 'jp.co.sanko-okinawa.store-inventory'
 app.setName('沖縄店舗在庫管理')
@@ -104,7 +105,8 @@ app.whenReady().then(async () => {
   appDb = openStoreDatabase(databasePath)
   auth = new AuthService(appDb)
   const maintenance = new MaintenanceService(appDb, auth, userData, databasePath)
-  registerIpc(auth, new CatalogService(appDb, auth), new InventoryService(appDb, auth), () => mainWindow?.webContents ?? null, isAllowedAppUrl, maintenance, () => mainWindow, () => {
+  const productImages = new ProductImagesService(appDb, auth)
+  registerIpc(auth, new CatalogService(appDb, auth, Date.now, productImages), new InventoryService(appDb, auth), () => mainWindow?.webContents ?? null, isAllowedAppUrl, maintenance, productImages, () => mainWindow, () => {
     dbClosedForRestore = true
     app.relaunch()
     setTimeout(() => app.quit(), 100)

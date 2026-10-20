@@ -7,6 +7,7 @@ import { once } from 'node:events'
 import { finished } from 'node:stream/promises'
 import type { ProductListQuery, Role, AppSettings, BackupCandidate } from '../../shared/contracts'
 import { openStoreDatabase, type StoreDatabase } from '../db/connection'
+import { migrations } from '../db/migrations'
 import { CatalogRepository } from '../db/repositories/catalog'
 import { AuthService, AppError } from '../auth/service'
 import { audit, type AuditActor } from './audit'
@@ -171,7 +172,7 @@ export class MaintenanceService {
         const rawVersion = this.schemaVersion(candidate)
         const appType = candidate.prepare("SELECT value FROM app_meta WHERE key='app_type'").get() as {value:string}|undefined
         const integrity = candidate.pragma('integrity_check') as Array<{integrity_check:string}>
-        if (appType?.value !== APP_ID || rawVersion > 5 || integrity[0]?.integrity_check !== 'ok') throw new Error('incompatible backup')
+        if (appType?.value !== APP_ID || rawVersion > (migrations.at(-1)?.version ?? 0) || integrity[0]?.integrity_check !== 'ok') throw new Error('incompatible backup')
         createdAt = (candidate.prepare("SELECT value AS created FROM app_meta WHERE key='backup_created_at'").get() as { created: string } | undefined)?.created ?? (candidate.prepare('SELECT MIN(applied_at) AS created FROM schema_migrations').get() as { created: string | null }).created
       } finally { candidate.close() }
       const migrated = openStoreDatabase(copy)
@@ -250,13 +251,13 @@ export class MaintenanceService {
     const appType = db.prepare("SELECT value FROM app_meta WHERE key='app_type'").get() as { value: string } | undefined
     if (appType?.value !== APP_ID) throw new Error('wrong application')
     const version = this.schemaVersion(db)
-    if (version > 5 || version < 4) throw new Error('unsupported schema')
+    if (version > (migrations.at(-1)?.version ?? 0) || version < 4) throw new Error('unsupported schema')
     const versions = db.prepare('SELECT version FROM schema_migrations ORDER BY version').all() as Array<{version:number}>
     if (versions.length !== version || versions.some((row, index) => row.version !== index + 1)) throw new Error('incomplete migration history')
-    const required = ['users','password_reset_codes','audit_logs','app_settings','categories','products','stock_movements']
+    const required = ['users','password_reset_codes','audit_logs','app_settings','categories','products','stock_movements','product_images']
     const found = new Set((db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{name:string}>).map(x => x.name))
     if (required.some(x => !found.has(x))) throw new Error('incomplete schema')
-    const expectedColumns: Record<string, string[]> = { users: ['id','login_name','password_hash','role','is_active'], password_reset_codes: ['user_id','code_hash','expires_at','consumed_at','revoked_at','issuer_kind'], audit_logs: ['actor_kind','action','details_json'], products: ['id','current_stock','reorder_level','category_id'], stock_movements: ['product_id','quantity_delta','stock_before','stock_after'] }
+    const expectedColumns: Record<string, string[]> = { users: ['id','login_name','password_hash','role','is_active'], password_reset_codes: ['user_id','code_hash','expires_at','consumed_at','revoked_at','issuer_kind'], audit_logs: ['actor_kind','action','details_json'], products: ['id','current_stock','reorder_level','category_id'], stock_movements: ['product_id','quantity_delta','stock_before','stock_after'], product_images: ['product_id','content','mime_type','width','height','updated_at'] }
     for (const [table, columns] of Object.entries(expectedColumns)) {
       const foundColumns = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as Array<{name:string}>).map((column) => column.name))
       if (columns.some((column) => !foundColumns.has(column))) throw new Error(`incomplete ${table}`)
@@ -267,6 +268,7 @@ export class MaintenanceService {
     if (Number((db.prepare("SELECT COUNT(*) n FROM users WHERE role='ADMIN' AND is_active=1").get() as {n:number}).n) < 1) throw new Error('no active admin')
     if (Number((db.prepare('SELECT COUNT(*) n FROM products WHERE current_stock<0 OR current_stock>2147483647').get() as {n:number}).n)) throw new Error('stock invariant')
     if (Number((db.prepare('SELECT COUNT(*) n FROM stock_movements WHERE stock_after<>stock_before+quantity_delta').get() as {n:number}).n)) throw new Error('movement invariant')
+    if (Number((db.prepare("SELECT COUNT(*) n FROM product_images WHERE typeof(content)<>'blob' OR length(content)<1 OR length(content)>5242880 OR mime_type<>'image/png' OR width<1 OR width>4096 OR height<1 OR height>4096").get() as {n:number}).n)) throw new Error('image invariant')
   }
 }
 
