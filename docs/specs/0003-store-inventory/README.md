@@ -5,7 +5,7 @@
 - [管理者の原Plan](../../plans/0003-store-inventory.md): 2026-10-20に受領した添付を変更せず保存。
 - [管理者の追加決定](../../plans/0003-store-inventory-decisions.md): 商品管理権限、再設定コード、管理者復旧ツール。
 - [実装プロンプト索引](../../prompts/0003-store-inventory/README.md): GPT6-Luna［High］への引き継ぎ。
-- 状態: Phase 0/1をWindows x64で実装・検証済み、Phase 2を実装中。各Phaseの実装・検証状況は [検証記録](delivery/verification.md) を参照する。後続Phaseや別Windows環境の検証を完了扱いしない。
+- 状態: Phase 0/1/2をWindows x64で実装・検証済み。各Phaseの実装・検証状況は [検証記録](delivery/verification.md) を参照する。後続Phaseや別Windows環境の検証を完了扱いしない。
 
 原Planの出典は添付 `貼り付けたテキスト.txt`。保存時のSHA-256は `3847FC36301630323A1917F2F48CAB08085B1471AA8003794DF468C13C6C9469`。追加の決定と設計判断は原文とは別に管理する。
 

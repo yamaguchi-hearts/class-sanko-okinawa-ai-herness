@@ -43,6 +43,20 @@ Phase 0で固定したWindows x64環境（OS build 10.0.26200、Node.js 24.19.0/
 
 Argon2idはD-27のargon2 0.45.1、m=65,536 KiB、t=3、p=4、出力32 byteを使用し、Phase 0のWindows実測値を維持する。Phase 1でも開発版E2Eとインストール版E2Eで実際にハッシュ生成・照合した。Windows 10別実機、NSIS更新インストール、コード署名、UIアクセシビリティは未検証。業務商品/カテゴリ/在庫APIは後続フェーズの対象。
 
+## Phase 2 実行結果（2026-10-20）
+
+Phase 1の認証/IPC境界と既存移行1・2を維持し、移行3にカテゴリ・商品スキーマを追加した。依存変更はなく、`package-lock.json`を維持している。すべてのE2EはPlaywright専用userData、一時DB、および一時インストール先で実行した。
+
+| コマンド/確認 | 結果 |
+| --- | --- |
+| `npm run typecheck` | 成功 |
+| `npm test` | 成功。16件。移行1→3、SKU trim/大文字化後の重複（無効商品を含む）、在庫0固定、編集DTOの在庫拒否、無効カテゴリ保持/選択拒否、`%`/`_`の文字検索、安定ページング、STAFF書込拒否、カテゴリ名重複、監査失敗時の変更rollbackを確認 |
+| `npm run test:e2e` | 成功。2件。初期ADMIN設定/再起動ログイン、STAFF発行とコード設定、カテゴリ・商品作成、特殊文字検索、無効カテゴリ表示、STAFF/未認証の管理操作拒否、RendererのNode統合無効を確認 |
+| `npm run dist:win` | 成功。Windows 10.0.26200 x64上でElectron 44.9.0 ABI向けに`better-sqlite3`/`argon2`を再ビルドし、NSIS installerを生成 |
+| `npm run test:packaged` | 成功。隔離領域へNSISを導入し、配布アプリの起動・SQLite書込後の終了/再起動読込・Argon2idログインを確認後、アンインストール |
+
+Phase 2では商品/カテゴリ/ユーザーの管理APIをMainで認可し、ユーザー変更とカタログ変更を監査記録と同一トランザクションにした。UIと直接APIの両方でSTAFF拒否、最後のADMIN保護を確認した。Phase 3の在庫変更・履歴、ダッシュボードは未実装である。Windows 10別実機、署名済み配布物、NSIS更新インストール、アクセシビリティは未検証。
+
 ## 単体・DB・IPCの検証表
 
 | 対象 | 主な確認 | 要求ID |

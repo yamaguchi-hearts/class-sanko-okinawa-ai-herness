@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import type { CreateUserInput, IpcResult, LoginInput, NewPasswordInput, PasswordChangeInput, ResetInput, SessionView, SetupInput, UpdateUserInput, UserSummary } from '../shared/contracts'
+import type { CategorySummary, CreateUserInput, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSummary, ResetInput, SessionView, SetupInput, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
 
 declare global {
   interface Window {
@@ -20,6 +20,18 @@ declare global {
         update(input: UpdateUserInput): Promise<IpcResult<null>>
         deactivate(userId: string): Promise<IpcResult<null>>
         issuePasswordReset(userId: string): Promise<IpcResult<{ code: string; expiresAt: string }>>
+      }
+      products: {
+        list(query: ProductListQuery): Promise<IpcResult<Page<ProductSummary>>>
+        create(input: ProductDraft): Promise<IpcResult<ProductSummary>>
+        update(input: UpdateProductInput): Promise<IpcResult<ProductSummary>>
+        deactivate(productId: string): Promise<IpcResult<null>>
+      }
+      categories: {
+        list(includeInactive?: boolean): Promise<IpcResult<CategorySummary[]>>
+        create(name: string): Promise<IpcResult<CategorySummary>>
+        update(input: UpdateCategoryInput): Promise<IpcResult<CategorySummary>>
+        deactivate(categoryId: string): Promise<IpcResult<null>>
       }
     }
   }

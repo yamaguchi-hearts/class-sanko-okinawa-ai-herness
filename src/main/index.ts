@@ -8,6 +8,7 @@ import { verifyPhase0Persistence } from './validation/phase0-store'
 import { openStoreDatabase } from './db/connection'
 import { AuthService } from './auth/service'
 import { registerIpc } from './ipc/register'
+import { CatalogService } from './services/catalog'
 
 const appId = 'jp.co.sanko-okinawa.store-inventory'
 app.setName('沖縄店舗在庫管理')
@@ -96,7 +97,7 @@ app.whenReady().then(async () => {
   }
   appDb = openStoreDatabase(resolve(userData, 'store-inventory.sqlite'))
   auth = new AuthService(appDb)
-  registerIpc(auth, () => mainWindow?.webContents ?? null, isAllowedAppUrl)
+  registerIpc(auth, new CatalogService(appDb, auth), () => mainWindow?.webContents ?? null, isAllowedAppUrl)
   setInterval(() => auth?.expireIdleSessions(), 5_000).unref()
   await createWindow()
 }).catch((error: unknown) => {

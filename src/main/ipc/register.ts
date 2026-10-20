@@ -1,8 +1,9 @@
 import { ipcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
 import { AppError, AuthService } from '../auth/service'
-import { validateCreateUser, validateLogin, validateNewPassword, validatePasswordChange, validateReset, validateSetup, validateUpdateUser } from '../../shared/validation'
+import { validateCategoryList, validateCategoryName, validateCreateProduct, validateCreateUser, validateLogin, validateNewPassword, validatePasswordChange, validateProductListQuery, validateReset, validateSetup, validateUpdateCategory, validateUpdateProduct, validateUpdateUser } from '../../shared/validation'
 import type { ValidationResult } from '../../shared/validation'
 import type { IpcResult, PublicErrorCode } from '../../shared/contracts'
+import type { CatalogService } from '../services/catalog'
 
 type TokenEnvelope<T> = { token: string; value: T }
 function errorResult(error: unknown): IpcResult<never> {
@@ -10,7 +11,8 @@ function errorResult(error: unknown): IpcResult<never> {
     const messages: Record<PublicErrorCode, string> = {
       VALIDATION_ERROR: '入力内容を確認してください。', AUTH_REQUIRED: 'ログインしてください。', AUTH_FAILED: '認証に失敗しました。入力内容を確認してください。',
       SESSION_EXPIRED: 'セッションの有効期限が切れました。もう一度ログインしてください。', ACCOUNT_LOCKED: 'アカウントが一時的にロックされています。', FORBIDDEN: 'この操作を行う権限がありません。',
-      DUPLICATE_LOGIN: 'このログインIDはすでに使用されています。', LAST_ADMIN_REQUIRED: '有効なADMINを1人以上残す必要があります。', NOT_FOUND: '対象が見つかりません。',
+      DUPLICATE_LOGIN: 'このログインIDはすでに使用されています。', DUPLICATE_SKU: 'このSKUはすでに登録されています。', DUPLICATE_CATEGORY: 'このカテゴリ名はすでに登録されています。',
+      LAST_ADMIN_REQUIRED: '有効なADMINを1人以上残す必要があります。', NOT_FOUND: '対象が見つかりません。', INACTIVE_ENTITY: '無効なカテゴリは新たに選択できません。',
       DATABASE_BUSY: 'データベースが使用中です。少し待ってから再試行してください。', DATABASE_ERROR: 'データを保存できませんでした。', RECOVERY_REQUIRED: 'データベースに有効なADMINがないか、初期設定状態に不整合があります。通常セットアップを行わず、管理者復旧手順を確認してください。'
     }
     return { ok: false, error: { code: error.code, message: messages[error.code] } }
@@ -20,7 +22,7 @@ function errorResult(error: unknown): IpcResult<never> {
   return { ok: false, error: { code, message: code === 'DATABASE_BUSY' ? 'データベースが使用中です。少し待ってから再試行してください。' : '処理を完了できませんでした。' } }
 }
 
-export function registerIpc(auth: AuthService, getMainContents: () => WebContents | null, allowedUrl: (url: string) => boolean): void {
+export function registerIpc(auth: AuthService, catalog: CatalogService, getMainContents: () => WebContents | null, allowedUrl: (url: string) => boolean): void {
   const assertSender = (event: IpcMainInvokeEvent): number => {
     const frame = event.senderFrame
     const main = getMainContents()
@@ -85,6 +87,26 @@ export function registerIpc(auth: AuthService, getMainContents: () => WebContent
   handle('users:issuePasswordReset', (_event, senderId, token, userId) => {
     if (typeof userId !== 'string' || !/^[0-9a-f-]{36}$/i.test(userId)) throw new AppError('VALIDATION_ERROR')
     return auth.issuePasswordReset(String(token), senderId, userId)
+  })
+  handle('products:list', (_event, senderId, token, raw) => catalog.listProducts(String(token), senderId, valid(validateProductListQuery(raw)))
+  )
+  handle('products:create', (_event, senderId, token, raw) => catalog.createProduct(String(token), senderId, valid(validateCreateProduct(raw)))
+  )
+  handle('products:update', (_event, senderId, token, raw) => catalog.updateProduct(String(token), senderId, valid(validateUpdateProduct(raw)))
+  )
+  handle('products:deactivate', (_event, senderId, token, productId) => {
+    if (typeof productId !== 'string' || !/^[0-9a-f-]{36}$/i.test(productId)) throw new AppError('VALIDATION_ERROR')
+    catalog.deactivateProduct(String(token), senderId, productId); return null
+  })
+  handle('categories:list', (_event, senderId, token, raw) => catalog.listCategories(String(token), senderId, valid(validateCategoryList(raw)).includeInactive)
+  )
+  handle('categories:create', (_event, senderId, token, raw) => catalog.createCategory(String(token), senderId, valid(validateCategoryName(raw)).name)
+  )
+  handle('categories:update', (_event, senderId, token, raw) => catalog.updateCategory(String(token), senderId, valid(validateUpdateCategory(raw)))
+  )
+  handle('categories:deactivate', (_event, senderId, token, categoryId) => {
+    if (typeof categoryId !== 'string' || !/^[0-9a-f-]{36}$/i.test(categoryId)) throw new AppError('VALIDATION_ERROR')
+    catalog.deactivateCategory(String(token), senderId, categoryId); return null
   })
   ipcMain.on('auth:trustedActivity', (event) => {
     try { assertSender(event as IpcMainInvokeEvent); auth.reportActivity(event.sender.id) } catch { /* reject silently */ }

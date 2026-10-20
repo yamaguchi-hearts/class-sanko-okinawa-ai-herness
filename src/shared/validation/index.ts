@@ -1,4 +1,4 @@
-import type { CreateUserInput, LoginInput, NewPasswordInput, PasswordChangeInput, ResetInput, Role, SetupInput, UpdateUserInput } from '../contracts'
+import type { CategorySummary, CreateUserInput, LoginInput, NewPasswordInput, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSortKey, ProductStatusFilter, ProductStockFilter, ResetInput, Role, SetupInput, UpdateCategoryInput, UpdateProductInput, UpdateUserInput } from '../contracts'
 
 export type ValidationIssue = Readonly<{ path: string; message: string }>
 export type ValidationResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; issues: readonly ValidationIssue[] }>
@@ -6,6 +6,12 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 const stringField = (v: Record<string, unknown>, key: string, min: number, max: number): string | undefined => {
   const value = v[key]
   return typeof value === 'string' && [...value].length >= min && [...value].length <= max ? value : undefined
+}
+const trimmedField = (v: Record<string, unknown>, key: string, min: number, max: number): string | undefined => {
+  const value = v[key]
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return [...trimmed].length >= min && [...trimmed].length <= max ? trimmed : undefined
 }
 function parse<T>(input: unknown, fields: Record<string, (v: Record<string, unknown>) => unknown>, required: readonly string[]): ValidationResult<T> {
   if (!isRecord(input) || Object.keys(input).some((key) => !required.includes(key))) return { ok: false, issues: [{ path: '', message: '入力形式が正しくありません。' }] }
@@ -19,9 +25,12 @@ function parse<T>(input: unknown, fields: Record<string, (v: Record<string, unkn
   return issues.length ? { ok: false, issues } : { ok: true, value: output as T }
 }
 const role = (v: Record<string, unknown>): Role | undefined => v.role === 'ADMIN' || v.role === 'STAFF' ? v.role : undefined
-const login = (v: Record<string, unknown>): string | undefined => stringField(v, 'loginName', 1, 64)?.trim()
+const login = (v: Record<string, unknown>): string | undefined => {
+  const value = trimmedField(v, 'loginName', 1, 64)
+  return value && [...value].length > 0 ? value : undefined
+}
 const name = (v: Record<string, unknown>, key: string): string | undefined => {
-  const value = stringField(v, key, 1, 100)?.trim()
+  const value = trimmedField(v, key, 1, 100)
   return value && [...value].length > 0 ? value : undefined
 }
 const password = (v: Record<string, unknown>, key: string): string | undefined => {
@@ -43,3 +52,50 @@ export const validateUpdateUser = (v: unknown) => parse<UpdateUserInput>(v, {
   userId: (x) => typeof x.userId === 'string' && /^[0-9a-f-]{36}$/i.test(x.userId) ? x.userId : undefined,
   displayName: (x) => name(x, 'displayName'), role
 }, ['userId', 'displayName', 'role'])
+
+const uuidField = (v: Record<string, unknown>, key: string): string | null | undefined => v[key] === null ? null : typeof v[key] === 'string' && /^[0-9a-f-]{36}$/i.test(v[key] as string) ? v[key] as string : undefined
+const productSku = (v: Record<string, unknown>): string | undefined => {
+  const sku = trimmedField(v, 'sku', 1, 64)
+  return sku && /^[A-Za-z0-9_-]{1,64}$/.test(sku) ? sku : undefined
+}
+const productName = (v: Record<string, unknown>): string | undefined => {
+  const value = trimmedField(v, 'name', 1, 200)
+  return value && [...value].length > 0 ? value : undefined
+}
+const unitField = (v: Record<string, unknown>): string | undefined => {
+  const value = trimmedField(v, 'unit', 1, 16)
+  return value && [...value].length > 0 ? value : undefined
+}
+const reorderLevel = (v: Record<string, unknown>): number | undefined => Number.isSafeInteger(v.reorderLevel) && (v.reorderLevel as number) >= 0 && (v.reorderLevel as number) <= 2_147_483_647 ? v.reorderLevel as number : undefined
+const noteField = (v: Record<string, unknown>): string | null | undefined => {
+  if (v.note === null) return null
+  if (typeof v.note !== 'string') return undefined
+  const note = v.note.trim()
+  if ([...note].length > 2000) return undefined
+  return note || null
+}
+const productFields = {
+  sku: productSku, name: productName, categoryId: (v: Record<string, unknown>) => uuidField(v, 'categoryId'),
+  unit: unitField, reorderLevel, note: noteField
+}
+export const validateCreateProduct = (v: unknown) => parse<ProductDraft>(v, productFields, ['sku', 'name', 'categoryId', 'unit', 'reorderLevel', 'note'])
+export const validateUpdateProduct = (v: unknown) => parse<UpdateProductInput>(v, {
+  ...productFields,
+  productId: (x) => typeof x.productId === 'string' && /^[0-9a-f-]{36}$/i.test(x.productId) ? x.productId : undefined
+}, ['productId', 'sku', 'name', 'categoryId', 'unit', 'reorderLevel', 'note'])
+export const validateProductListQuery = (v: unknown) => parse<ProductListQuery>(v, {
+  search: (x) => typeof x.search === 'string' && [...x.search.trim()].length <= 200 ? x.search.trim() : undefined,
+  categoryId: (x) => uuidField(x, 'categoryId'),
+  status: (x) => ['ACTIVE', 'INACTIVE', 'ALL'].includes(String(x.status)) ? x.status as ProductStatusFilter : undefined,
+  stockFilter: (x) => ['ALL', 'LOW', 'ZERO'].includes(String(x.stockFilter)) ? x.stockFilter as ProductStockFilter : undefined,
+  sortKey: (x) => ['name', 'sku', 'currentStock', 'reorderLevel'].includes(String(x.sortKey)) ? x.sortKey as ProductSortKey : undefined,
+  direction: (x) => x.direction === 'asc' || x.direction === 'desc' ? x.direction : undefined,
+  page: (x) => Number.isSafeInteger(x.page) && (x.page as number) >= 1 ? x.page : undefined,
+  pageSize: (x) => Number.isSafeInteger(x.pageSize) && (x.pageSize as number) >= 1 && (x.pageSize as number) <= 200 ? x.pageSize : undefined
+}, ['search', 'categoryId', 'status', 'stockFilter', 'sortKey', 'direction', 'page', 'pageSize'])
+export const validateCategoryName = (v: unknown) => parse<{ name: string }>(v, { name: (x) => name(x, 'name') }, ['name'])
+export const validateUpdateCategory = (v: unknown) => parse<UpdateCategoryInput>(v, {
+  categoryId: (x) => typeof x.categoryId === 'string' && /^[0-9a-f-]{36}$/i.test(x.categoryId) ? x.categoryId : undefined,
+  name: (x) => name(x, 'name')
+}, ['categoryId', 'name'])
+export const validateCategoryList = (v: unknown) => parse<{ includeInactive: boolean }>(v, { includeInactive: (x) => typeof x.includeInactive === 'boolean' ? x.includeInactive : undefined }, ['includeInactive'])

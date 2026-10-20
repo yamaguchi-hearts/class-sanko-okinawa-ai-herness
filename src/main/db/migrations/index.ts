@@ -50,5 +50,37 @@ export const migrations: readonly Migration[] = [
         CREATE INDEX audit_entity ON audit_logs(entity_type, entity_id, created_at DESC);
       `)
     }
+  },
+  {
+    version: 3,
+    up(db) {
+      db.exec(`
+        CREATE TABLE categories (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+          name_key TEXT NOT NULL UNIQUE,
+          is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE products (
+          id TEXT PRIMARY KEY,
+          sku TEXT NOT NULL COLLATE NOCASE UNIQUE CHECK (length(sku) BETWEEN 1 AND 64),
+          name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 200),
+          name_search_key TEXT NOT NULL,
+          category_id TEXT REFERENCES categories(id) ON DELETE RESTRICT,
+          unit TEXT NOT NULL CHECK (length(unit) BETWEEN 1 AND 16),
+          current_stock INTEGER NOT NULL DEFAULT 0 CHECK (current_stock BETWEEN 0 AND 2147483647),
+          reorder_level INTEGER NOT NULL DEFAULT 0 CHECK (reorder_level BETWEEN 0 AND 2147483647),
+          note TEXT CHECK (note IS NULL OR length(note) <= 2000),
+          is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX products_name ON products(name_search_key COLLATE NOCASE, sku COLLATE NOCASE, id);
+        CREATE INDEX products_category ON products(category_id);
+        CREATE INDEX products_active ON products(is_active);
+      `)
+    }
   }
 ]

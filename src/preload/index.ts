@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { CreateUserInput, IpcResult, LoginInput, NewPasswordInput, PasswordChangeInput, ResetInput, SessionView, SetupInput, UpdateUserInput, UserSummary } from '../shared/contracts'
+import type { CategorySummary, CreateUserInput, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSummary, ResetInput, SessionView, SetupInput, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
 
 let internalToken: string | null = null
 type TokenResponse = IpcResult<{ session: SessionView; internalToken: string }>
@@ -32,6 +32,18 @@ const api = Object.freeze({
     update: (input: UpdateUserInput) => protectedCall<null>('users:update', input),
     deactivate: (userId: string) => protectedCall<null>('users:deactivate', userId),
     issuePasswordReset: (userId: string) => protectedCall<{ code: string; expiresAt: string }>('users:issuePasswordReset', userId)
+  }),
+  products: Object.freeze({
+    list: (query: ProductListQuery) => protectedCall<Page<ProductSummary>>('products:list', query),
+    create: (input: ProductDraft) => protectedCall<ProductSummary>('products:create', input),
+    update: (input: UpdateProductInput) => protectedCall<ProductSummary>('products:update', input),
+    deactivate: (productId: string) => protectedCall<null>('products:deactivate', productId)
+  }),
+  categories: Object.freeze({
+    list: (includeInactive = false) => protectedCall<CategorySummary[]>('categories:list', { includeInactive }),
+    create: (name: string) => protectedCall<CategorySummary>('categories:create', { name }),
+    update: (input: UpdateCategoryInput) => protectedCall<CategorySummary>('categories:update', input),
+    deactivate: (categoryId: string) => protectedCall<null>('categories:deactivate', categoryId)
   })
 })
 contextBridge.exposeInMainWorld('storeApp', api)
