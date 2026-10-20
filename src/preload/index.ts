@@ -1,6 +1,43 @@
-// Main/Preload/Renderer境界を確立する段階。公開IPC APIはPhase 1で用途別に追加する。
-import { contextBridge } from 'electron'
-import type { Phase0Status } from '../shared/contracts'
+import { contextBridge, ipcRenderer } from 'electron'
+import type { CreateUserInput, IpcResult, LoginInput, NewPasswordInput, PasswordChangeInput, ResetInput, SessionView, SetupInput, UpdateUserInput, UserSummary } from '../shared/contracts'
 
-const status: Phase0Status = Object.freeze({ ready: true })
-contextBridge.exposeInMainWorld('appStatus', status)
+let internalToken: string | null = null
+type TokenResponse = IpcResult<{ session: SessionView; internalToken: string }>
+async function sessionCall(channel: string, payload: unknown): Promise<IpcResult<SessionView>> {
+  const result = await ipcRenderer.invoke(channel, payload) as TokenResponse
+  if (!result.ok) return result
+  internalToken = result.value.internalToken
+  return { ok: true, value: result.value.session }
+}
+async function protectedCall<T>(channel: string, payload?: unknown): Promise<IpcResult<T>> {
+  return ipcRenderer.invoke(channel, internalToken, payload) as Promise<IpcResult<T>>
+}
+const api = Object.freeze({
+  setup: Object.freeze({
+    isRequired: () => ipcRenderer.invoke('setup:isRequired') as Promise<IpcResult<boolean>>,
+    createInitialAdmin: (input: SetupInput) => sessionCall('setup:createInitialAdmin', input)
+  }),
+  auth: Object.freeze({
+    login: (input: LoginInput) => sessionCall('auth:login', input),
+    getSession: () => ipcRenderer.invoke('auth:getSession') as Promise<IpcResult<SessionView | null>>,
+    logout: async () => { internalToken = null; return ipcRenderer.invoke('auth:logout') as Promise<IpcResult<null>> },
+    unlock: (password: string) => sessionCall('auth:unlock', { password }),
+    changeOwnPassword: (input: PasswordChangeInput) => protectedCall<null>('auth:changeOwnPassword', input).then((r) => { if (r.ok) internalToken = null; return r }),
+    beginPasswordReset: (input: ResetInput) => sessionCall('auth:beginPasswordReset', input),
+    completePasswordReset: (input: NewPasswordInput) => protectedCall<null>('auth:completePasswordReset', input).then((r) => { if (r.ok) internalToken = null; return r })
+  }),
+  users: Object.freeze({
+    list: () => protectedCall<UserSummary[]>('users:list'),
+    create: (input: CreateUserInput) => protectedCall<{ user: UserSummary; code: string; expiresAt: string }>('users:create', input),
+    update: (input: UpdateUserInput) => protectedCall<null>('users:update', input),
+    deactivate: (userId: string) => protectedCall<null>('users:deactivate', userId),
+    issuePasswordReset: (userId: string) => protectedCall<{ code: string; expiresAt: string }>('users:issuePasswordReset', userId)
+  })
+})
+contextBridge.exposeInMainWorld('storeApp', api)
+
+for (const eventName of ['pointerdown', 'keydown']) {
+  window.addEventListener(eventName, (event) => {
+    if (event.isTrusted) ipcRenderer.send('auth:trustedActivity')
+  }, { capture: true, passive: true })
+}

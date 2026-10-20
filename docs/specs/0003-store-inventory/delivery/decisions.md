@@ -36,6 +36,9 @@
 | D-26 | 公開DTO/エラーの定義元は `src/shared/contracts/`、共有入力検証は `src/shared/validation/`、番号付きマイグレーションは `src/main/db/migrations/` に置く。Phase 1で適用履歴用 `schema_migrations` を初期化する | Main秘密型とRenderer公開契約を分離し、適用済み移行の不変性を保つ |
 | D-27 | Argon2idはargon2 npm 0.45.1のArgon2id実装、m=65,536 KiB、t=3、p=4、出力32 byteを採用 | 64 MiB級のメモリコストを確保し、Windows x64 Electronで実測して選定。実行時間はPhase 0記録に残す |
 | D-28 | 製品DBのuserData内ファイル名は `store-inventory.sqlite`。Phase 0検証DBは `phase0-validation/persistence.sqlite` | 製品データと検証データを別ファイル・別ディレクトリに分離し、検証実行が業務DBに触れないようにする |
+| D-29 | 初期スキーマ移行1は認証・設定・監査テーブル、移行2は再設定/監査索引としてPhase 1で固定し、Phase 2以降は新番号を追加する | 適用済みスキーマの不変性を保ち、既存DBの段階移行を検証可能にする |
+| D-30 | IPCの認証状態は用途別Mainハンドラーが検証する。内部トークンは認証応答でPreloadへ返し、Preloadクロージャだけで保管・付与する。物理キー/ポインターの信頼済みイベントのみ活動時刻を更新する | D-24/D-25を実装し、Renderer向け任意チャンネルやポーリングによる期限延長を避ける |
+| D-31 | セットアップ完了後に有効ADMINが0人、またはセットアップ未完了でユーザー行が存在するDBは通常セットアップを拒否し、復旧案内にする | 不整合DBから通常画面で管理権限を再作成させない |
 
 ## Phase 0 技術確定・実測
 
@@ -58,9 +61,9 @@ Windows実測はKDFハッシュ21ms、照合18ms（同一マシンで各1回のP
 
 製品DBは `%APPDATA%\沖縄店舗在庫管理\store-inventory.sqlite`、Phase 0検証用DBは `%APPDATA%\沖縄店舗在庫管理\phase0-validation\persistence.sqlite`。起動引数 `--phase0-verify` のMain内限定検証で後者を作成/再読込し、結果を同ディレクトリの `result.json` に記録する。通常UI/PreloadからDB読書きや検証ハッシュへアクセスできない。
 
-## Phase 0の確定状況
+## Phase 0・1の確定状況
 
-依存バージョン、Argon2id設定、Windows userData名と排他方式、NSIS設定、検証コマンド、共有契約/マイグレーション配置は上記記録のとおり確定した。Electron内部トークンの受渡しと期限管理はD-24/D-25のとおりPhase 1で実装する。管理者復旧ツールの独立配布はD-23のとおりPhase 4で実装する。Phase 0で残る環境上の課題はなく、Windows 10/更新インストール/署名証明書/NSIS実インストールは後続の対象である。
+依存バージョン、Argon2id設定、Windows userData名と排他方式、NSIS設定、検証コマンド、共有契約/マイグレーション配置は上記記録のとおり確定した。Phase 1で移行1・2と認証/IPC境界を実装し、再現可能な契約を固定した。管理者復旧ツールの独立配布はD-23のとおりPhase 4で実装する。Windows 10の別環境、更新インストール、署名証明書は後続の対象である。
 
 ## 後続フェーズでの実機検証
 

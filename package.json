@@ -17,7 +17,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test tests/e2e/startup.spec.ts",
+    "test:e2e": "playwright test tests/e2e/startup.spec.ts tests/e2e/authentication.spec.ts",
     "test:packaged": "playwright test tests/e2e/packaged.spec.ts",
     "rebuild:native": "electron-rebuild -f",
     "dist:win": "electron-builder --win nsis --x64",

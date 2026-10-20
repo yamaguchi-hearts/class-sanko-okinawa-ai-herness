@@ -1,2 +1,54 @@
-/** 番号付きDBマイグレーションの唯一の定義元。業務スキーマはPhase 1で追加する。 */
-export const migrations: readonly [] = []
+import type Database from 'better-sqlite3'
+
+export type Migration = Readonly<{ version: number; up: (db: Database.Database) => void }>
+
+export const migrations: readonly Migration[] = [
+  {
+    version: 1,
+    up(db) {
+      db.exec(`
+        CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE users (
+          id TEXT PRIMARY KEY, login_name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+          display_name TEXT NOT NULL, password_hash TEXT NOT NULL,
+          role TEXT NOT NULL CHECK (role IN ('ADMIN','STAFF')),
+          is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
+          must_change_password INTEGER NOT NULL DEFAULT 0 CHECK (must_change_password IN (0,1)),
+          failed_login_count INTEGER NOT NULL DEFAULT 0 CHECK (failed_login_count >= 0),
+          locked_until TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_login_at TEXT
+        );
+        CREATE TABLE password_reset_codes (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+          code_hash TEXT NOT NULL, expires_at TEXT NOT NULL,
+          failed_attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (failed_attempt_count >= 0),
+          consumed_at TEXT, revoked_at TEXT, created_at TEXT NOT NULL,
+          issuer_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          issuer_kind TEXT NOT NULL CHECK (issuer_kind IN ('ADMIN','OFFLINE_RECOVERY'))
+        );
+        CREATE TABLE audit_logs (
+          id TEXT PRIMARY KEY, actor_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          actor_login_snapshot TEXT, actor_name_snapshot TEXT, actor_role_snapshot TEXT,
+          action TEXT NOT NULL, entity_type TEXT, entity_id TEXT, details_json TEXT,
+          created_at TEXT NOT NULL
+        );
+        CREATE TABLE app_settings (
+          key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL
+        );
+      `)
+    }
+  },
+  {
+    version: 2,
+    up(db) {
+      db.exec(`
+        CREATE UNIQUE INDEX password_reset_one_live_per_user
+          ON password_reset_codes(user_id)
+          WHERE consumed_at IS NULL AND revoked_at IS NULL;
+        CREATE INDEX password_reset_expiry ON password_reset_codes(expires_at);
+        CREATE INDEX audit_created_at ON audit_logs(created_at DESC);
+        CREATE INDEX audit_entity ON audit_logs(entity_type, entity_id, created_at DESC);
+      `)
+    }
+  }
+]

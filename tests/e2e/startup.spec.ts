@@ -14,7 +14,7 @@ test('opens a sandboxed renderer with no Node integration', async () => {
   try {
     const window = await app.firstWindow()
     try {
-      await expect(window.getByRole('heading', { name: '沖縄店舗在庫管理' })).toBeVisible()
+      await expect(window.getByRole('heading', { name: '初期セットアップ' })).toBeVisible()
     } catch (error) {
       throw new Error(`${error instanceof Error ? error.message : String(error)}\nMain process output:\n${startupLogs}`)
     }

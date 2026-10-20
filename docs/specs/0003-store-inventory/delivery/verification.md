@@ -28,6 +28,21 @@ Argon2idのWindows実測はハッシュ21ms、照合18msの記録と、後続の
 
 NSIS installerの一時領域への実インストール・起動・検証・アンインストールまで確認した。Windows 10、更新インストール、署名証明書、Excel、復旧ツールは後続フェーズの検証対象。
 
+## Phase 1 実行結果（2026-10-20）
+
+Phase 0で固定したWindows x64環境（OS build 10.0.26200、Node.js 24.19.0/npm 11.17.0、Electron 44.9.0）で認証・DB基盤を追加検証した。依存追加はなく、既存lockfileを維持している。テストDB/userData/NSISインストール先は一時ディレクトリを使った。
+
+| コマンド/確認 | 結果 |
+| --- | --- |
+| `npm run typecheck` | 成功 |
+| `npm test` | 成功。9件。新規/既適用/未来版移行、FKとbusy timeout、セットアップ競合・一回制約、再起動時の再認証、最終ADMIN保護、失敗待機30秒→60秒、無操作ロック、旧トークン拒否、コード再発行/期限/一度限り/制限セッション/パスワード更新、監査秘密除外を確認 |
+| `npm run test:e2e` | 成功。2件。Electron開発版で初回セットアップ→終了/再起動→ADMINログイン→STAFF作成→コードで本人設定→STAFFログイン、匿名/STAFFの管理API拒否、RendererのNode/require非公開を確認 |
+| `npm run build` | 成功。Main/Preload/Rendererを分離ビルド |
+| `npm run dist:win` | 成功。Windows x64 NSISを生成し、Argon2id/better-sqlite3をElectron 44.9.0 ABI向けに再ビルド |
+| `npm run test:packaged` | 成功。NSISを一時領域へ導入し、導入アプリで初回ADMIN作成・終了・再起動・Argon2idログインを実行。Phase 0隔離DBの再読込/KDF照合も成功後アンインストール |
+
+Argon2idはD-27のargon2 0.45.1、m=65,536 KiB、t=3、p=4、出力32 byteを使用し、Phase 0のWindows実測値を維持する。Phase 1でも開発版E2Eとインストール版E2Eで実際にハッシュ生成・照合した。Windows 10別実機、NSIS更新インストール、コード署名、UIアクセシビリティは未検証。業務商品/カテゴリ/在庫APIは後続フェーズの対象。
+
 ## 単体・DB・IPCの検証表
 
 | 対象 | 主な確認 | 要求ID |

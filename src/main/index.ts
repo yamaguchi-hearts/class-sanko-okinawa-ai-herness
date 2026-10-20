@@ -5,6 +5,9 @@ import { writeFile } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
 import lockfile from 'proper-lockfile'
 import { verifyPhase0Persistence } from './validation/phase0-store'
+import { openStoreDatabase } from './db/connection'
+import { AuthService } from './auth/service'
+import { registerIpc } from './ipc/register'
 
 const appId = 'jp.co.sanko-okinawa.store-inventory'
 app.setName('沖縄店舗在庫管理')
@@ -21,6 +24,9 @@ if (selectedDataArg) {
 const allowedDevUrl = 'http://127.0.0.1:5173/'
 let releaseDataLock: (() => Promise<void>) | undefined
 let finishingQuit = false
+let mainWindow: BrowserWindow | null = null
+let auth: AuthService | null = null
+let appDb: ReturnType<typeof openStoreDatabase> | null = null
 
 function isAllowedAppUrl(rawUrl: string): boolean {
   if (app.isPackaged) return rawUrl === pathToFileURL(resolve(__dirname, '../renderer/index.html')).href
@@ -42,10 +48,15 @@ async function createWindow(): Promise<void> {
       devTools: !app.isPackaged
     }
   })
+  mainWindow = window
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   window.webContents.on('will-navigate', (event, url) => {
     if (!isAllowedAppUrl(url)) event.preventDefault()
   })
+  window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+    if (!isInPlace && isMainFrame) auth?.logout(window.webContents.id)
+  })
+  window.on('closed', () => { mainWindow = null })
   if (app.isPackaged) await window.loadFile(resolve(__dirname, '../renderer/index.html'))
   else await window.loadURL(allowedDevUrl)
 }
@@ -55,7 +66,10 @@ app.on('web-contents-created', (_event, contents) => {
 })
 
 app.on('before-quit', (event) => {
-  if (finishingQuit || !releaseDataLock) return
+  if (finishingQuit || !releaseDataLock) {
+    if (finishingQuit) { appDb?.close(); appDb = null }
+    return
+  }
   event.preventDefault()
   finishingQuit = true
   void releaseDataLock().finally(() => app.quit())
@@ -80,6 +94,10 @@ app.whenReady().then(async () => {
     app.quit()
     return
   }
+  appDb = openStoreDatabase(resolve(userData, 'store-inventory.sqlite'))
+  auth = new AuthService(appDb)
+  registerIpc(auth, () => mainWindow?.webContents ?? null, isAllowedAppUrl)
+  setInterval(() => auth?.expireIdleSessions(), 5_000).unref()
   await createWindow()
 }).catch((error: unknown) => {
   console.error('Application startup failed:', error instanceof Error ? error.message : 'unknown error')
