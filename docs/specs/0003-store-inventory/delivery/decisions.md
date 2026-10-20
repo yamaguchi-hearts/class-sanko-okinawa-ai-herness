@@ -49,6 +49,7 @@
 | D-39 | Phase 4で監査主体種別 `actor_kind` を移行5で追加し、通常利用者・オフライン復旧・システムを区別する | 復旧exeの操作を店舗ユーザーの操作と混同せず記録し、移行1〜4を不変に保つ |
 | D-40 | 復元候補はMainがuserData内へコピーして検査し、適用時にSQLite backup APIで現DBを退避する。復元マーカーは同一userDataに段階とファイル名のみを記録し、再起動時は未確定操作を元DBへ戻す | Rendererから任意パスを受けず、強制終了で候補だけが不完全なまま業務起動する事態を避ける |
 | D-41 | 復旧ツールは専用ElectronエントリーをWindows x64 portable targetとして別appId・`requireAdministrator`で配布する。通常アプリと同じuserDataディレクトリロックを使用する | PCにNode開発環境を要求せず、アプリの昇格を常態化させず、同時書込みを拒否する |
+| D-42 | DEMOの新規パスワードは4〜128 Unicodeコードポイントとし、0003の12文字下限を置き換える。ログイン・ロック解除・現在パスワード照合は既存の1〜128文字条件を維持する | [0004 R-DEMO](../../0004-demo-enhancements/requirements/demo-password.md)による管理者確定要件。既存ハッシュや認証機構は変更しない |
 
 ## Phase 0 技術確定・実測
 

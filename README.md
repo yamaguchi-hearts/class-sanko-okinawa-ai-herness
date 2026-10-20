@@ -50,6 +50,8 @@ Windowsのクリーン導入にはVisual C++ツールチェーンが必要です
 
 Phase 1では番号付きSQLite移行、初期ADMIN、Argon2idログイン、段階的な失敗待機、無操作ロック、本人のパスワード変更、ADMINによるユーザー発行と一度限りの再設定コードを実装しています。Phase 2では商品・カテゴリ・ユーザー管理と商品一覧を追加しました。Phase 3ではMainの在庫サービスに更新を集約し、入庫・出庫・棚卸、在庫履歴、ダッシュボードを追加しました。商品作成時の在庫は0で、商品編集から在庫を書き換えられません。内部セッショントークンはMainからPreloadへ渡し、Preload内に保持します。Rendererは型付きAPIのみ利用します。
 
+このDEMO版で新しく設定するパスワードは、初期セットアップ・本人変更・再設定とも4〜128 Unicodeコードポイントです。入力値のtrimやUnicode正規化は行いません。ログイン・ロック解除・現在パスワードの照合では既存パスワードを継続利用できます。詳細は[DEMOパスワード要件](docs/specs/0004-demo-enhancements/requirements/demo-password.md)を参照してください。
+
 Phase 0〜3の主要確認は `pnpm run typecheck`、`pnpm test`（一時SQLite/サービス統合）、`pnpm run test:e2e`（開発版セットアップ・認証・カタログ・在庫変更・履歴）、`pnpm run dist:win` と `pnpm run test:packaged`（NSIS導入版のDB永続化・Argon2idログイン）です。各実行結果は[検証記録](docs/specs/0003-store-inventory/delivery/verification.md)にあります。
 
 Phase 4の設定はADMINだけが変更できます。店舗名と無操作ロック時間（1〜60分、既定15分）を更新し、ロック時間短縮は最終本人操作時刻に照らして即時再評価します。商品一覧のCSV出力は画面の検索・カテゴリ・状態・在庫条件・ソートを保ち、一致する全件をUTF-8 BOM/CRLFで保存します。保存ダイアログのキャンセルも監査されます。Excelでの表示確認はWindows実機と対象Excel版で行い、結果を検証記録に残してください。

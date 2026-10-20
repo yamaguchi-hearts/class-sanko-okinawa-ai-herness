@@ -56,7 +56,6 @@ export function registerIpc(auth: AuthService, catalog: CatalogService, inventor
   handle('setup:isRequired', () => auth.isSetupRequired())
   handle('setup:createInitialAdmin', async (_event, senderId, raw) => {
     const input = valid(validateSetup(raw))
-    if (input.password !== input.confirmPassword) throw new AppError('VALIDATION_ERROR')
     const result = await auth.setup(input, senderId)
     return { session: result.view, internalToken: result.token }
   })
@@ -74,7 +73,6 @@ export function registerIpc(auth: AuthService, catalog: CatalogService, inventor
   })
   handle('auth:changeOwnPassword', async (_event, senderId, token, raw) => {
     const input = valid<{ currentPassword: string; newPassword: string; confirmPassword: string }>(validatePasswordChange(raw))
-    if (input.newPassword !== input.confirmPassword) throw new AppError('VALIDATION_ERROR')
     await auth.changeOwnPassword(String(token), senderId, input.currentPassword, input.newPassword); return null
   })
   handle('auth:beginPasswordReset', async (_event, senderId, raw) => {
@@ -83,7 +81,6 @@ export function registerIpc(auth: AuthService, catalog: CatalogService, inventor
   })
   handle('auth:completePasswordReset', async (_event, senderId, token, raw) => {
     const input = valid<{ password: string; confirmPassword: string }>(validateNewPassword(raw))
-    if (input.password !== input.confirmPassword) throw new AppError('VALIDATION_ERROR')
     await auth.completePasswordReset(String(token), senderId, input.password); return null
   })
   handle('users:list', (_event, senderId, token) => auth.listUsers(String(token), senderId))

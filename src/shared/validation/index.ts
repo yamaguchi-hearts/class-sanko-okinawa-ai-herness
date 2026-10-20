@@ -2,6 +2,8 @@ import type { CreateUserInput, LoginInput, NewPasswordInput, PasswordChangeInput
 
 export type ValidationIssue = Readonly<{ path: string; message: string }>
 export type ValidationResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; issues: readonly ValidationIssue[] }>
+export const DEMO_PASSWORD_MIN_CODE_POINTS = 4
+export const DEMO_PASSWORD_MAX_CODE_POINTS = 128
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 const stringField = (v: Record<string, unknown>, key: string, min: number, max: number): string | undefined => {
   const value = v[key]
@@ -24,6 +26,12 @@ function parse<T>(input: unknown, fields: Record<string, (v: Record<string, unkn
   }
   return issues.length ? { ok: false, issues } : { ok: true, value: output as T }
 }
+function requireMatchingPassword<T>(result: ValidationResult<T>, passwordKey: 'password' | 'newPassword'): ValidationResult<T> {
+  if (!result.ok) return result
+  const value = result.value as Record<string, unknown>
+  if (value[passwordKey] !== value.confirmPassword) return { ok: false, issues: [{ path: 'confirmPassword', message: '入力内容を確認してください。' }] }
+  return result
+}
 const role = (v: Record<string, unknown>): Role | undefined => v.role === 'ADMIN' || v.role === 'STAFF' ? v.role : undefined
 const login = (v: Record<string, unknown>): string | undefined => {
   const value = trimmedField(v, 'loginName', 1, 64)
@@ -34,19 +42,18 @@ const name = (v: Record<string, unknown>, key: string): string | undefined => {
   return value && [...value].length > 0 ? value : undefined
 }
 const password = (v: Record<string, unknown>, key: string): string | undefined => {
-  const value = stringField(v, key, 12, 128)
-  return value && [...value].length >= 12 ? value : undefined
+  return stringField(v, key, DEMO_PASSWORD_MIN_CODE_POINTS, DEMO_PASSWORD_MAX_CODE_POINTS)
 }
-export const validateSetup = (v: unknown) => parse<SetupInput>(v, {
+export const validateSetup = (v: unknown) => requireMatchingPassword(parse<SetupInput>(v, {
   storeName: (x) => name(x, 'storeName'), displayName: (x) => name(x, 'displayName'), loginName: login,
   password: (x) => password(x, 'password'), confirmPassword: (x) => password(x, 'confirmPassword')
-}, ['storeName', 'displayName', 'loginName', 'password', 'confirmPassword'])
+}, ['storeName', 'displayName', 'loginName', 'password', 'confirmPassword']), 'password')
 export const validateLogin = (v: unknown) => parse<LoginInput>(v, { loginName: login, password: (x) => stringField(x, 'password', 1, 128) }, ['loginName', 'password'])
-export const validatePasswordChange = (v: unknown) => parse<PasswordChangeInput>(v, {
+export const validatePasswordChange = (v: unknown) => requireMatchingPassword(parse<PasswordChangeInput>(v, {
   currentPassword: (x) => stringField(x, 'currentPassword', 1, 128), newPassword: (x) => password(x, 'newPassword'), confirmPassword: (x) => password(x, 'confirmPassword')
-}, ['currentPassword', 'newPassword', 'confirmPassword'])
+}, ['currentPassword', 'newPassword', 'confirmPassword']), 'newPassword')
 export const validateReset = (v: unknown) => parse<ResetInput>(v, { loginName: login, code: (x) => stringField(x, 'code', 1, 128) }, ['loginName', 'code'])
-export const validateNewPassword = (v: unknown) => parse<NewPasswordInput>(v, { password: (x) => password(x, 'password'), confirmPassword: (x) => password(x, 'confirmPassword') }, ['password', 'confirmPassword'])
+export const validateNewPassword = (v: unknown) => requireMatchingPassword(parse<NewPasswordInput>(v, { password: (x) => password(x, 'password'), confirmPassword: (x) => password(x, 'confirmPassword') }, ['password', 'confirmPassword']), 'password')
 export const validateCreateUser = (v: unknown) => parse<CreateUserInput>(v, { loginName: login, displayName: (x) => name(x, 'displayName'), role }, ['loginName', 'displayName', 'role'])
 export const validateUpdateUser = (v: unknown) => parse<UpdateUserInput>(v, {
   userId: (x) => typeof x.userId === 'string' && /^[0-9a-f-]{36}$/i.test(x.userId) ? x.userId : undefined,
