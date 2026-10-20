@@ -25,6 +25,7 @@
 | `stock.record` | 種別、商品ID、数量または実数、理由、メモ→最新在庫・movement | 両ロール |
 | `stock.list` | 商品、期間、種別、実行者、ページ→Page | 両ロール |
 | `stock.getDashboard` | 集計・直近履歴→DashboardSummary | 両ロール |
+| `stock.listActors` | 在庫記録に存在する操作者スナップショット候補→選択肢 | 両ロール |
 | `users.list/create/update/deactivate` | UserSummaryのみ、ハッシュを返さない | ADMIN |
 | `users.issuePasswordReset` | ユーザーID→一度だけ表示するコードと有効期限 | ADMIN |
 | `categories.list` | 有効/全件の読取、ID・名称・状態 | 両ロール |

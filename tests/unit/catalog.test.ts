@@ -26,7 +26,7 @@ const product = (patch: Partial<ProductDraft> = {}): ProductDraft => ({ sku: 'SK
 describe('catalog and category foundation', () => {
   it('starts at migration 3 and creates products with zero stock and no stock update DTO', async () => {
     await setup()
-    expect((db!.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as { version: number }).version).toBe(3)
+    expect((db!.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as { version: number }).version).toBe(4)
     const created = catalog.createProduct(adminToken, 1, product())
     expect(created.currentStock).toBe(0)
     expect(validateCreateProduct({ ...product(), currentStock: 500 }).ok).toBe(false)

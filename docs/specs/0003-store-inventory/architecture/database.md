@@ -37,13 +37,13 @@ SQLiteはuserData内の固定ファイル `store-inventory.sqlite` に保存し�
 
 適用済みファイルは書き換えず、新しい番号を追加する。新規DBと旧版DBの両方をテストする。既存DBの移行前には一貫性のあるバックアップを取り、移行失敗時は通常起動せず原本を保持する。復元候補はコピー上で検証・必要な対応済み移行を済ませ、未来版・別アプリ・破損DBを拒否する。
 
-初期マイグレーションはPhase 1でapp_meta/users/reset/audit/settingsを作り、Phase 2でcategories/products、Phase 3でstock_movementsを追加する。各段階の番号はPhase 0後に実装者が確定し、後続フェーズは既適用番号を変更しない。
+移行1はPhase 1でapp_meta/users/reset/audit/settings、移行3はPhase 2でcategories/products、移行4はPhase 3でstock_movementsと索引を追加する（移行2はreset/audit索引）。後続フェーズは既適用番号を変更しない。
 
 ## トランザクションと不変条件
 
 商品・カテゴリ・ユーザーの変更と監査、初期セットアップ全体、コード失効/発行、再設定完了と失敗制御更新は、それぞれ同一トランザクションにする。最後の有効ADMIN保護とセットアップ再実行拒否は同じ書込みトランザクションで再確認する。
 
-在庫サービスでは書込み権を確保してから現在庫を読み、更新・movement・auditを一括確定する。推奨はIMMEDIATEトランザクション。読取後の古い値を別トランザクションで上書きしない。失敗は全体をロールバックし、busy timeout超過は `DATABASE_BUSY` に変換する。
+在庫サービスでは書込み権を確保してから現在庫を読み、更新・movement・auditを一括確定する。推奨はIMMEDIATEトランザクション。読取後の古い値を別トランザクションで上書きしない。失敗は全体をロールバックし、busy timeout超過は `DATABASE_BUSY` に変換する。`stock_movements`は数量差分を整数に限定し、before/afterと差分の整合、範囲、種別、理由をDB CHECKでも検証する。
 
 ## 受け入れ条件
 

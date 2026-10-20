@@ -55,7 +55,15 @@ td small { display: block; color: #966012; }
 .page-footer { border-top: 1px solid #e5eaee; margin-top: 24px; padding-top: 12px; }
 .page-footer .link { display: inline; }
 .notice .link { display: inline; margin-left: 10px; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 12px; margin: 20px 0; }
+.stats article, .stats .stat-button { min-height: 96px; display: grid; align-content: center; gap: 8px; padding: 16px; background: #f7f9fb; border: 1px solid #dbe3e9; border-radius: 8px; color: #344450; text-align: left; }
+.stats span { color: #647481; font-size: 13px; }
+.stats strong { font-size: 26px; }
+.stats .stat-button { background: #fff; }
+.history-filters { grid-template-columns: repeat(3, minmax(130px, 1fr)); }
+.history-product-search { display: grid; grid-template-columns: minmax(220px, 1fr) auto; align-items: end; gap: 10px; margin-top: 18px; }
 dialog { width: min(92vw, 480px); border: 1px solid #ccd6df; border-radius: 10px; box-shadow: 0 20px 80px #0004; padding: 26px; }
 dialog::backdrop { background: #15253688; }
 @media (max-width: 760px) { .inline-form { grid-template-columns: 1fr; } .topbar { align-items: flex-start; gap: 12px; flex-direction: column; } .card { padding: 22px; } }
 @media (max-width: 980px) { .filters { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 650px) { .stats { grid-template-columns: repeat(2, minmax(0,1fr)); } }

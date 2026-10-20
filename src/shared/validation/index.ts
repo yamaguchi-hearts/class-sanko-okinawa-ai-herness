@@ -1,4 +1,4 @@
-import type { CategorySummary, CreateUserInput, LoginInput, NewPasswordInput, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSortKey, ProductStatusFilter, ProductStockFilter, ResetInput, Role, SetupInput, UpdateCategoryInput, UpdateProductInput, UpdateUserInput } from '../contracts'
+import type { CategorySummary, CreateUserInput, LoginInput, NewPasswordInput, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSortKey, ProductStatusFilter, ProductStockFilter, RecordStockMovementInput, ResetInput, Role, SetupInput, StockMovementQuery, StockMovementType, StockReasonCode, UpdateCategoryInput, UpdateProductInput, UpdateUserInput } from '../contracts'
 
 export type ValidationIssue = Readonly<{ path: string; message: string }>
 export type ValidationResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; issues: readonly ValidationIssue[] }>
@@ -99,3 +99,38 @@ export const validateUpdateCategory = (v: unknown) => parse<UpdateCategoryInput>
   name: (x) => name(x, 'name')
 }, ['categoryId', 'name'])
 export const validateCategoryList = (v: unknown) => parse<{ includeInactive: boolean }>(v, { includeInactive: (x) => typeof x.includeInactive === 'boolean' ? x.includeInactive : undefined }, ['includeInactive'])
+
+const movementReason = (v: Record<string, unknown>): StockReasonCode | undefined => ['DELIVERY', 'RETURN', 'DAMAGE', 'EXPIRED', 'STOCKTAKE', 'OTHER'].includes(String(v.reasonCode)) ? v.reasonCode as StockReasonCode : undefined
+const stockInteger = (v: Record<string, unknown>, key: string, allowZero: boolean): number | undefined => Number.isSafeInteger(v[key]) && (v[key] as number) >= (allowZero ? 0 : 1) && (v[key] as number) <= 2_147_483_647 ? v[key] as number : undefined
+const stockNote = (v: Record<string, unknown>): string | null | undefined => noteField({ note: v.note })
+const movementBase = {
+  productId: (v: Record<string, unknown>) => typeof v.productId === 'string' && /^[0-9a-f-]{36}$/i.test(v.productId) ? v.productId : undefined,
+  reasonCode: movementReason,
+  note: stockNote
+}
+export const validateRecordStockMovement = (v: unknown) => {
+  if (!isRecord(v)) return { ok: false as const, issues: [{ path: '', message: '入力形式が正しくありません。' }] }
+  if (v.type === 'RECEIPT' || v.type === 'ISSUE') return parse<RecordStockMovementInput>(v, {
+    ...movementBase, type: (x) => x.type, quantity: (x) => stockInteger(x, 'quantity', false)
+  }, ['type', 'productId', 'quantity', 'reasonCode', 'note'])
+  if (v.type === 'ADJUSTMENT') return parse<RecordStockMovementInput>(v, {
+    ...movementBase, type: (x) => x.type, countedStock: (x) => stockInteger(x, 'countedStock', true)
+  }, ['type', 'productId', 'countedStock', 'reasonCode', 'note'])
+  return { ok: false as const, issues: [{ path: 'type', message: '入力内容を確認してください。' }] }
+}
+const movementType = (x: Record<string, unknown>): StockMovementType | null | undefined => x.type === null ? null : ['OPENING', 'RECEIPT', 'ISSUE', 'ADJUSTMENT'].includes(String(x.type)) ? x.type as StockMovementType : undefined
+const utcTimestamp = (x: Record<string, unknown>, key: string): string | null | undefined => {
+  if (x[key] === null) return null
+  const value = x[key]
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value)) return undefined
+  const parsed = Date.parse(value)
+  const canonical = Number.isFinite(parsed) ? new Date(parsed).toISOString() : ''
+  const expected = value.includes('.') ? value : value.replace(/Z$/, '.000Z')
+  return canonical === expected ? canonical : undefined
+}
+export const validateStockMovementQuery = (v: unknown) => parse<StockMovementQuery>(v, {
+  productId: (x) => uuidField(x, 'productId'), startAt: (x) => utcTimestamp(x, 'startAt'), endAt: (x) => utcTimestamp(x, 'endAt'),
+  type: movementType, actorUserId: (x) => uuidField(x, 'actorUserId'),
+  page: (x) => Number.isSafeInteger(x.page) && (x.page as number) >= 1 ? x.page : undefined,
+  pageSize: (x) => Number.isSafeInteger(x.pageSize) && (x.pageSize as number) >= 1 && (x.pageSize as number) <= 200 ? x.pageSize : undefined
+}, ['productId', 'startAt', 'endAt', 'type', 'actorUserId', 'page', 'pageSize'])

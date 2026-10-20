@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import type { CategorySummary, CreateUserInput, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSummary, ResetInput, SessionView, SetupInput, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
+import type { CategorySummary, CreateUserInput, DashboardSummary, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSummary, RecordStockMovementInput, RecordStockMovementResult, ResetInput, SessionView, SetupInput, StockActorOption, StockMovementQuery, StockMovementSummary, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
 
 declare global {
   interface Window {
@@ -32,6 +32,12 @@ declare global {
         create(name: string): Promise<IpcResult<CategorySummary>>
         update(input: UpdateCategoryInput): Promise<IpcResult<CategorySummary>>
         deactivate(categoryId: string): Promise<IpcResult<null>>
+      }
+      stock: {
+        record(input: RecordStockMovementInput): Promise<IpcResult<RecordStockMovementResult>>
+        list(query: StockMovementQuery): Promise<IpcResult<Page<StockMovementSummary>>>
+        getDashboard(): Promise<IpcResult<DashboardSummary>>
+        listActors(): Promise<IpcResult<StockActorOption[]>>
       }
     }
   }

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { CategorySummary, CreateUserInput, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSummary, ResetInput, SessionView, SetupInput, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
+import type { CategorySummary, CreateUserInput, DashboardSummary, IpcResult, LoginInput, NewPasswordInput, Page, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSummary, RecordStockMovementInput, RecordStockMovementResult, ResetInput, SessionView, SetupInput, StockActorOption, StockMovementQuery, StockMovementSummary, UpdateCategoryInput, UpdateProductInput, UpdateUserInput, UserSummary } from '../shared/contracts'
 
 let internalToken: string | null = null
 type TokenResponse = IpcResult<{ session: SessionView; internalToken: string }>
@@ -44,6 +44,12 @@ const api = Object.freeze({
     create: (name: string) => protectedCall<CategorySummary>('categories:create', { name }),
     update: (input: UpdateCategoryInput) => protectedCall<CategorySummary>('categories:update', input),
     deactivate: (categoryId: string) => protectedCall<null>('categories:deactivate', categoryId)
+  }),
+  stock: Object.freeze({
+    record: (input: RecordStockMovementInput) => protectedCall<RecordStockMovementResult>('stock:record', input),
+    list: (query: StockMovementQuery) => protectedCall<Page<StockMovementSummary>>('stock:list', query),
+    getDashboard: () => protectedCall<DashboardSummary>('stock:getDashboard'),
+    listActors: () => protectedCall<StockActorOption[]>('stock:listActors')
   })
 })
 contextBridge.exposeInMainWorld('storeApp', api)

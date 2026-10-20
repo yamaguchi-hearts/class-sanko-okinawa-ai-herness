@@ -82,5 +82,33 @@ export const migrations: readonly Migration[] = [
         CREATE INDEX products_active ON products(is_active);
       `)
     }
+  },
+  {
+    version: 4,
+    up(db) {
+      db.exec(`
+        CREATE TABLE stock_movements (
+          id TEXT PRIMARY KEY,
+          product_id TEXT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+          movement_type TEXT NOT NULL CHECK (movement_type IN ('OPENING','RECEIPT','ISSUE','ADJUSTMENT')),
+          quantity_delta INTEGER NOT NULL CHECK (typeof(quantity_delta)='integer'),
+          stock_before INTEGER NOT NULL CHECK (typeof(stock_before)='integer' AND stock_before BETWEEN 0 AND 2147483647),
+          stock_after INTEGER NOT NULL CHECK (typeof(stock_after)='integer' AND stock_after BETWEEN 0 AND 2147483647),
+          reason_code TEXT NOT NULL CHECK (reason_code IN ('DELIVERY','RETURN','DAMAGE','EXPIRED','STOCKTAKE','OTHER')),
+          note TEXT CHECK (note IS NULL OR length(note) <= 2000),
+          actor_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          actor_login_snapshot TEXT NOT NULL,
+          actor_name_snapshot TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          CHECK (stock_after = stock_before + quantity_delta),
+          CHECK ((movement_type='RECEIPT' AND quantity_delta>0) OR
+                 (movement_type='ISSUE' AND quantity_delta<0) OR
+                 (movement_type='ADJUSTMENT') OR (movement_type='OPENING' AND stock_before=0 AND quantity_delta>=0))
+        );
+        CREATE INDEX stock_movements_product_created ON stock_movements(product_id, created_at DESC, id DESC);
+        CREATE INDEX stock_movements_created ON stock_movements(created_at DESC, id DESC);
+        CREATE INDEX stock_movements_actor_created ON stock_movements(actor_user_id, created_at DESC, id DESC);
+      `)
+    }
   }
 ]

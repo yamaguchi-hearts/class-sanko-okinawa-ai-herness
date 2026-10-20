@@ -1,9 +1,10 @@
 import { ipcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
 import { AppError, AuthService } from '../auth/service'
-import { validateCategoryList, validateCategoryName, validateCreateProduct, validateCreateUser, validateLogin, validateNewPassword, validatePasswordChange, validateProductListQuery, validateReset, validateSetup, validateUpdateCategory, validateUpdateProduct, validateUpdateUser } from '../../shared/validation'
+import { validateCategoryList, validateCategoryName, validateCreateProduct, validateCreateUser, validateLogin, validateNewPassword, validatePasswordChange, validateProductListQuery, validateRecordStockMovement, validateReset, validateSetup, validateStockMovementQuery, validateUpdateCategory, validateUpdateProduct, validateUpdateUser } from '../../shared/validation'
 import type { ValidationResult } from '../../shared/validation'
 import type { IpcResult, PublicErrorCode } from '../../shared/contracts'
 import type { CatalogService } from '../services/catalog'
+import type { InventoryService } from '../services/inventory'
 
 type TokenEnvelope<T> = { token: string; value: T }
 function errorResult(error: unknown): IpcResult<never> {
@@ -12,7 +13,8 @@ function errorResult(error: unknown): IpcResult<never> {
       VALIDATION_ERROR: '入力内容を確認してください。', AUTH_REQUIRED: 'ログインしてください。', AUTH_FAILED: '認証に失敗しました。入力内容を確認してください。',
       SESSION_EXPIRED: 'セッションの有効期限が切れました。もう一度ログインしてください。', ACCOUNT_LOCKED: 'アカウントが一時的にロックされています。', FORBIDDEN: 'この操作を行う権限がありません。',
       DUPLICATE_LOGIN: 'このログインIDはすでに使用されています。', DUPLICATE_SKU: 'このSKUはすでに登録されています。', DUPLICATE_CATEGORY: 'このカテゴリ名はすでに登録されています。',
-      LAST_ADMIN_REQUIRED: '有効なADMINを1人以上残す必要があります。', NOT_FOUND: '対象が見つかりません。', INACTIVE_ENTITY: '無効なカテゴリは新たに選択できません。',
+      LAST_ADMIN_REQUIRED: '有効なADMINを1人以上残す必要があります。', NOT_FOUND: '対象が見つかりません。', INACTIVE_ENTITY: '無効な商品またはカテゴリは新たに選択できません。',
+      INSUFFICIENT_STOCK: '在庫が不足しています。最新の在庫数を確認してください。',
       DATABASE_BUSY: 'データベースが使用中です。少し待ってから再試行してください。', DATABASE_ERROR: 'データを保存できませんでした。', RECOVERY_REQUIRED: 'データベースに有効なADMINがないか、初期設定状態に不整合があります。通常セットアップを行わず、管理者復旧手順を確認してください。'
     }
     return { ok: false, error: { code: error.code, message: messages[error.code] } }
@@ -22,7 +24,7 @@ function errorResult(error: unknown): IpcResult<never> {
   return { ok: false, error: { code, message: code === 'DATABASE_BUSY' ? 'データベースが使用中です。少し待ってから再試行してください。' : '処理を完了できませんでした。' } }
 }
 
-export function registerIpc(auth: AuthService, catalog: CatalogService, getMainContents: () => WebContents | null, allowedUrl: (url: string) => boolean): void {
+export function registerIpc(auth: AuthService, catalog: CatalogService, inventory: InventoryService, getMainContents: () => WebContents | null, allowedUrl: (url: string) => boolean): void {
   const assertSender = (event: IpcMainInvokeEvent): number => {
     const frame = event.senderFrame
     const main = getMainContents()
@@ -108,6 +110,14 @@ export function registerIpc(auth: AuthService, catalog: CatalogService, getMainC
     if (typeof categoryId !== 'string' || !/^[0-9a-f-]{36}$/i.test(categoryId)) throw new AppError('VALIDATION_ERROR')
     catalog.deactivateCategory(String(token), senderId, categoryId); return null
   })
+  handle('stock:record', (_event, senderId, token, raw) => inventory.record(String(token), senderId, valid(validateRecordStockMovement(raw))))
+  handle('stock:list', (_event, senderId, token, raw) => {
+    const query = valid(validateStockMovementQuery(raw))
+    if (query.startAt && query.endAt && query.startAt >= query.endAt) throw new AppError('VALIDATION_ERROR')
+    return inventory.list(String(token), senderId, query)
+  })
+  handle('stock:getDashboard', (_event, senderId, token) => inventory.dashboard(String(token), senderId))
+  handle('stock:listActors', (_event, senderId, token) => inventory.listActors(String(token), senderId))
   ipcMain.on('auth:trustedActivity', (event) => {
     try { assertSender(event as IpcMainInvokeEvent); auth.reportActivity(event.sender.id) } catch { /* reject silently */ }
   })

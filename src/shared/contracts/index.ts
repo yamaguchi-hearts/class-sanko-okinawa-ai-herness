@@ -25,7 +25,30 @@ export type ProductListQuery = Readonly<{
 }>
 export type UpdateCategoryInput = Readonly<{ categoryId: string; name: string }>
 
-export type PublicErrorCode = 'VALIDATION_ERROR' | 'AUTH_REQUIRED' | 'AUTH_FAILED' | 'SESSION_EXPIRED' | 'ACCOUNT_LOCKED' | 'FORBIDDEN' | 'DUPLICATE_LOGIN' | 'DUPLICATE_SKU' | 'DUPLICATE_CATEGORY' | 'LAST_ADMIN_REQUIRED' | 'NOT_FOUND' | 'INACTIVE_ENTITY' | 'DATABASE_BUSY' | 'DATABASE_ERROR' | 'RECOVERY_REQUIRED'
+export type StockMovementType = 'OPENING' | 'RECEIPT' | 'ISSUE' | 'ADJUSTMENT'
+export type StockReasonCode = 'DELIVERY' | 'RETURN' | 'DAMAGE' | 'EXPIRED' | 'STOCKTAKE' | 'OTHER'
+type StockMovementFields = Readonly<{ productId: string; reasonCode: StockReasonCode; note: string | null }>
+export type RecordStockMovementInput = StockMovementFields & (
+  | Readonly<{ type: 'RECEIPT' | 'ISSUE'; quantity: number }>
+  | Readonly<{ type: 'ADJUSTMENT'; countedStock: number }>
+)
+export type StockMovementSummary = Readonly<{
+  id: string; productId: string; productSku: string; productName: string; type: StockMovementType
+  quantityDelta: number; stockBefore: number; stockAfter: number; reasonCode: StockReasonCode; note: string | null
+  actorUserId: string | null; actorLoginName: string; actorDisplayName: string; createdAt: string
+}>
+export type StockMovementQuery = Readonly<{
+  productId: string | null; startAt: string | null; endAt: string | null; type: StockMovementType | null
+  actorUserId: string | null; page: number; pageSize: number
+}>
+export type StockActorOption = Readonly<{ userId: string; loginName: string; displayName: string }>
+export type DashboardSummary = Readonly<{
+  registeredProductCount: number; activeProductCount: number; lowStockProductCount: number; zeroStockProductCount: number
+  recentMovements: readonly StockMovementSummary[]
+}>
+export type RecordStockMovementResult = Readonly<{ currentStock: number; movement: StockMovementSummary }>
+
+export type PublicErrorCode = 'VALIDATION_ERROR' | 'AUTH_REQUIRED' | 'AUTH_FAILED' | 'SESSION_EXPIRED' | 'ACCOUNT_LOCKED' | 'FORBIDDEN' | 'DUPLICATE_LOGIN' | 'DUPLICATE_SKU' | 'DUPLICATE_CATEGORY' | 'LAST_ADMIN_REQUIRED' | 'NOT_FOUND' | 'INACTIVE_ENTITY' | 'INSUFFICIENT_STOCK' | 'DATABASE_BUSY' | 'DATABASE_ERROR' | 'RECOVERY_REQUIRED'
 export type IpcResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: Readonly<{ code: PublicErrorCode; message: string }> }>
 
 export type SetupInput = Readonly<{ storeName: string; displayName: string; loginName: string; password: string; confirmPassword: string }>
