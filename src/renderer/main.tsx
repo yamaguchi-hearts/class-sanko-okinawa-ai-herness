@@ -11,6 +11,28 @@ const blankProduct: ProductFormDraft = { sku: '', name: '', categoryId: null, un
 type Tab = 'dashboard' | 'products' | 'stock' | 'history' | 'categories' | 'users' | 'settings' | 'data'
 const initialMovementQuery: StockMovementQuery = { productId: null, startAt: null, endAt: null, type: null, actorUserId: null, page: 1, pageSize: 50 }
 const reasonLabels = { DELIVERY: '入荷', RETURN: '返品', DAMAGE: '破損', EXPIRED: '期限切れ', STOCKTAKE: '棚卸差異', OTHER: 'その他' } as const
+const MAX_CONCURRENT_IMAGE_LOADS = 4
+let activeImageLoads = 0
+const queuedImageLoads: Array<() => void> = []
+const thumbnailCache = new Map<string, string>()
+
+function enqueueImageLoad<T>(loader: () => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const run = () => {
+      activeImageLoads++
+      void loader().then(resolve, reject).finally(() => {
+        activeImageLoads--
+        queuedImageLoads.shift()?.()
+      })
+    }
+    if (activeImageLoads < MAX_CONCURRENT_IMAGE_LOADS) run()
+    else queuedImageLoads.push(run)
+  })
+}
+
+function clearProductImageCache(): void {
+  thumbnailCache.clear()
+}
 
 function App(): React.JSX.Element {
   const [setupRequired, setSetupRequired] = useState<boolean | null>(null)
@@ -72,7 +94,10 @@ function App(): React.JSX.Element {
     if (!session || session.state !== 'AUTHENTICATED') return
     setLoadingProducts(true)
     const result = await window.storeApp.products.list(nextQuery)
-    if (result.ok) { setProducts([...result.value.items]); setProductTotal(result.value.total) }
+    if (result.ok) {
+      clearProductImageCache()
+      setProducts([...result.value.items]); setProductTotal(result.value.total)
+    }
     else setError(result.error.message)
     setLoadingProducts(false)
   }, [query, session])
@@ -98,6 +123,15 @@ function App(): React.JSX.Element {
     void refreshCategories()
     void refreshProducts(query)
   }, [session?.state, session?.user.id, session?.user.role, query, refreshUsers, refreshCategories, refreshProducts])
+  useEffect(() => {
+    if (session?.state !== 'AUTHENTICATED') {
+      clearProductImageCache()
+      setPendingImage(null)
+      setRemoveImage(false)
+      setProductFormOpen(false)
+      setDetailImage(null)
+    }
+  }, [session?.state])
   useEffect(() => {
     if (session?.state !== 'AUTHENTICATED') return
     void refreshDashboard()
@@ -235,8 +269,15 @@ function ProductThumbnail({ product, onOpen }: { product: ProductSummary; onOpen
   const [dataUrl, setDataUrl] = useState<string | null>(null)
   useEffect(() => {
     let active = true
+    const cacheKey = `${product.id}:${product.imageUpdatedAt ?? ''}`
     if (!product.hasImage) { setDataUrl(null); return () => { active = false } }
-    void window.storeApp.productImages.get(product.id, 'THUMBNAIL').then((result) => { if (active && result.ok) setDataUrl(result.value?.dataUrl ?? null) })
+    const cached = thumbnailCache.get(cacheKey)
+    if (cached) { setDataUrl(cached); return () => { active = false } }
+    void enqueueImageLoad(() => window.storeApp.productImages.get(product.id, 'THUMBNAIL')).then((result) => {
+      if (!result.ok || !result.value) return
+      thumbnailCache.set(cacheKey, result.value.dataUrl)
+      if (active) setDataUrl(result.value.dataUrl)
+    })
     return () => { active = false }
   }, [product.id, product.hasImage, product.imageUpdatedAt])
   if (!product.hasImage || !dataUrl) return <span className="image-empty">画像なし</span>

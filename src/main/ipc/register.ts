@@ -69,7 +69,11 @@ export function registerIpc(auth: AuthService, catalog: CatalogService, inventor
     const result = await auth.login(input.loginName, input.password, senderId)
     return { session: result.view, internalToken: result.token }
   })
-  handle('auth:getSession', (_event, senderId) => auth.getSession(senderId))
+  handle('auth:getSession', (_event, senderId) => {
+    const session = auth.getSession(senderId)
+    if (session?.state === 'LOCKED') productImages.clearSender(senderId)
+    return session
+  })
   handle('auth:logout', (_event, senderId) => { productImages.clearSender(senderId); auth.logout(senderId); return null })
   handle('auth:unlock', async (_event, senderId, raw) => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw as object).join(',') !== 'password' || typeof (raw as { password?: unknown }).password !== 'string') throw new AppError('VALIDATION_ERROR')
