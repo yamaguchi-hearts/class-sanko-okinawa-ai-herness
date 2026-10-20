@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import lockfile from 'proper-lockfile'
 import { openStoreDatabase } from '../../src/main/db/connection'
+import { migrations } from '../../src/main/db/migrations'
 import { AuthService, AppError } from '../../src/main/auth/service'
 import { CatalogService } from '../../src/main/services/catalog'
 import { InventoryService } from '../../src/main/services/inventory'
@@ -84,6 +85,33 @@ describe('CSV/settings/backup maintenance', () => {
     now += 4 * 60_000
     service.updateSettings(admin.token, 4, { storeName: '設定後', idleLockMinutes: 1 })
     expect(auth.getSession(4)?.state).toBe('LOCKED')
+  })
+
+  it('accepts a schema 6 backup by migrating only its inspection copy to schema 7', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'inventory-legacy-backup-'))
+    db = openStoreDatabase(join(dir, 'store.sqlite'))
+    const auth = new AuthService(db)
+    const admin = await auth.setup({ storeName: '現行店舗', displayName: '管理者', loginName: 'admin', password: 'legacy backup password' }, 4)
+    const legacyPath = join(dir, 'schema-6.sqlite3')
+    const legacy = new Database(legacyPath)
+    legacy.pragma('foreign_keys = ON')
+    legacy.exec('CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)')
+    for (const migration of migrations.slice(0, 6)) {
+      migration.up(legacy)
+      legacy.prepare('INSERT INTO schema_migrations(version,applied_at) VALUES(?,?)').run(migration.version, new Date().toISOString())
+    }
+    legacy.prepare('INSERT INTO app_meta(key,value) VALUES(?,?)').run('app_type', 'jp.co.sanko-okinawa.store-inventory')
+    legacy.prepare('INSERT INTO app_meta(key,value) VALUES(?,?)').run('setup_completed_at', new Date().toISOString())
+    legacy.prepare('INSERT INTO app_meta(key,value) VALUES(?,?)').run('store_name', '旧店舗')
+    legacy.prepare('INSERT INTO users(id,login_name,display_name,password_hash,role,created_at,updated_at) VALUES(?,?,?,?,?,?,?)')
+      .run('legacy-admin', 'legacy-admin', '旧管理者', 'unused-test-hash', 'ADMIN', new Date().toISOString(), new Date().toISOString())
+    legacy.close()
+
+    const service = new MaintenanceService(db, auth, dir, join(dir, 'store.sqlite'))
+    const candidate = await service.inspectRestoreCandidate(admin.token, 4, legacyPath)
+    expect(candidate).toMatchObject({ storeName: '旧店舗', schemaVersion: 7, productCount: 0, userCount: 1 })
+    expect((db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as { version: number }).version).toBe(7)
+    expect(db.prepare('SELECT 1 FROM sqlite_master WHERE type=\'table\' AND name=\'product_images\'').get()).toBeTruthy()
   })
 
   it('backs up and restores an image with its opening stock while rejecting a corrupted image candidate', async () => {

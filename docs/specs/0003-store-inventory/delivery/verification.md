@@ -163,3 +163,20 @@ Windows 10.0.26300 x64、Host Node.js 24.21.0、pnpm 10.26.1、Electron 44.9.0�
 実装中にBrowserWindowの`closed`イベント後で破棄済み`webContents.id`を読む例外を特定した。Window生成時にsender IDを保存し、`closed`処理では保存値を使うよう修正した。修正後の保守・認証E2Eはアプリ終了まで成功した。画像E2Eで最初に使ったPNG fixtureはヘッダー寸法だけが妥当でElectron実デコーダーが拒否したため、CRCを含むPNGを生成するfixtureに置き換えた。これはテストデータの不備で、製品画像処理の変更は不要だった。
 
 `pnpm run check`のラッパーはCorepack実行環境で内部`pnpm`コマンドがPATHにないため実行不可だった。構成要素を直接実行して成功を確認した。Windows 10別実機、署名済みinstaller、更新インストール、昇格後の復旧操作、Windows Excel表示は未検証。0004-05の横断統合ゲートも別途残る。
+
+## 0004-05 横断統合検証（2026-10-20）
+
+Windows 10.0.26300 x64、Host Node.js 24.21.0、pnpm 10.26.1、Electron 44.9.0で実施。Node.jsはリポジトリ指定24.19.0と異なるためengine警告が出る。`pnpm install --frozen-lockfile`は成功し、lockfile差分はない。テストは専用の一時DB/userData/インストール領域を使用した。
+
+| コマンド/確認 | 結果 |
+| --- | --- |
+| `pnpm install --frozen-lockfile` | 成功。lockfile up-to-date、差分なし。Electron ABI向けnative依存を再構築 |
+| `pnpm run check` | 成功。lint警告0、TypeScript型検査、単体7ファイル46件 |
+| `pnpm run test:lint` | 成功。ESLint設定の自己テスト6件 |
+| `pnpm run test:e2e` | 成功。開発版Electron 3件 |
+| `playwright test tests/e2e/authentication.spec.ts` | 成功。4文字ADMIN設定、初期在庫商品、STAFFの画像参照許可と画像選択/削除IPC拒否を確認 |
+| `playwright test tests/e2e/packaged.spec.ts` | 成功。NSIS配布版のSQLite永続化、画像BLOBの再起動後表示、Argon2idログインを確認 |
+| `pnpm run dist:recovery` | 成功。Windows x64 portable復旧exeを生成 |
+| schema 6バックアップ候補検査 | 成功。検査用コピーだけschema 7へ移行し、稼働DBは不変であることを単体テストで確認 |
+
+この記録の範囲では、frozen installから開発版検証、NSIS配布版E2E、復旧portable生成まで成功した。更新インストール前後の既存DB保持、UAC昇格後の復旧実操作、Windows 10別実機、署名済み配布物、Excel表示は未検証であり、05のリリース運用ゲートは継続中。ネイティブ画像ダイアログのキャンセル/置換を含むWindows UI実操作も未検証。Phase 4の未検証項目を完了扱いしない。
