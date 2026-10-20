@@ -1,4 +1,4 @@
-import type { CategorySummary, CreateProductInput, CreateUserInput, LoginInput, NewPasswordInput, PasswordChangeInput, ProductDraft, ProductListQuery, ProductSortKey, ProductStatusFilter, ProductStockFilter, ProductImageChange, RecordStockMovementInput, ResetInput, Role, SetupInput, StockMovementQuery, StockMovementType, StockReasonCode, UpdateCategoryInput, UpdateProductInput, UpdateUserInput } from '../contracts'
+import type { CreateProductInput, CreateUserInput, LoginInput, NewPasswordInput, PasswordChangeInput, ProductListQuery, ProductSortKey, ProductStatusFilter, ProductStockFilter, ProductImageChange, RecordStockMovementInput, ResetInput, Role, SetupInput, StockMovementQuery, StockMovementType, StockReasonCode, UpdateCategoryInput, UpdateProductInput, UpdateUserInput } from '../contracts'
 
 export type ValidationIssue = Readonly<{ path: string; message: string }>
 export type ValidationResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; issues: readonly ValidationIssue[] }>

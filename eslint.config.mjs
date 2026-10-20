@@ -13,13 +13,14 @@ const generatedPaths = [
 ]
 
 const rendererRestrictedImports = {
-  paths: ['electron', 'better-sqlite3', 'argon2'],
-  patterns: [
-    'node:*',
-    '**/main/**',
-    '**/recovery/**'
-  ],
-  message: 'RendererからMain/復旧専用モジュールやNode APIを直接参照しないでください。'
+  paths: ['electron', 'better-sqlite3', 'argon2'].map((name) => ({
+    name,
+    message: 'RendererからMain専用モジュールやNode APIを直接参照しないでください。'
+  })),
+  patterns: [{
+    group: ['node:*', '**/main/**', '**/recovery/**'],
+    message: 'RendererからMain/復旧専用モジュールやNode APIを直接参照しないでください。'
+  }]
 }
 
 export default tseslint.config(

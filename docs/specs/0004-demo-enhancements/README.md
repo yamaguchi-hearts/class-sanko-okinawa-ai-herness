@@ -5,7 +5,7 @@
 - [Plan](../../plans/0004-demo-enhancements.md)
 - [基本設計0003](../0003-store-inventory/README.md)
 - [実装プロンプト](../../prompts/0004-demo-enhancements/README.md)
-- 状態: pnpm移行、ESLint設定、DEMOパスワード、初期在庫、商品画像を実装済み。型検査・単体テスト・ビルド・E2E一部を検証済み。TypeScript 7.0.2とtypescript-eslintの互換性問題でlintは未通過、Windows配布と画像操作の実機検証は未完了。
+- 状態: pnpm移行、ESLint設定、DEMOパスワード、初期在庫、商品画像を実装済み。TypeScript 6.0.3へ固定し、型検査・単体テスト・ビルド・lint・E2E一部を検証済み。Windows配布と画像操作の実機検証は未完了。
 
 ## 要求対応
 

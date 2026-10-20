@@ -2,6 +2,13 @@ import { test, expect, _electron as electron } from '@playwright/test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { IpcResult } from '../../src/shared/contracts'
+
+type BrowserWindow = { storeApp: Window['storeApp'] }
+function unwrap<T>(result: IpcResult<T>): T {
+  if (!result.ok) throw new Error(result.error.message)
+  return result.value
+}
 
 test.setTimeout(300_000)
 test('first setup, restart login, STAFF code setup and Main authorization', async () => {
@@ -25,9 +32,9 @@ test('first setup, restart login, STAFF code setup and Main authorization', asyn
     app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`], env })
     window = await app.firstWindow()
     await expect(window.getByRole('heading', { name: '沖縄店舗在庫管理' })).toBeVisible()
-    const anonymous = await window.evaluate(async () => (window as any).storeApp.users.list())
+    const anonymous = await window.evaluate(async () => (window as unknown as BrowserWindow).storeApp.users.list())
     expect(anonymous).toMatchObject({ ok: false, error: { code: 'AUTH_REQUIRED' } })
-    const anonymousStock = await window.evaluate(async () => (window as any).storeApp.stock.listActors())
+    const anonymousStock = await window.evaluate(async () => (window as unknown as BrowserWindow).storeApp.stock.listActors())
     expect(anonymousStock).toMatchObject({ ok: false, error: { code: 'AUTH_REQUIRED' } })
     await window.getByLabel('ログインID').fill('admin')
     await window.getByLabel('パスワード', { exact: true }).fill('admin e2e passphrase')
@@ -41,8 +48,9 @@ test('first setup, restart login, STAFF code setup and Main authorization', asyn
     const message = await window.locator('.notice').innerText()
     const code = message.match(/再設定コード: ([A-Za-z0-9_-]+)/)?.[1]
     expect(code).toBeTruthy()
-    const adminSession = await window.evaluate(async () => (window as any).storeApp.auth.getSession())
-    const lastAdmin = await window.evaluate(async (userId) => (window as any).storeApp.users.update({ userId, displayName: '管理責任者', role: 'STAFF' }), adminSession.value.user.id)
+    const adminSession = unwrap(await window.evaluate(async () => (window as unknown as BrowserWindow).storeApp.auth.getSession()))
+    if (!adminSession) throw new Error('認証セッションが取得できません。')
+    const lastAdmin = await window.evaluate(async (userId) => (window as unknown as BrowserWindow).storeApp.users.update({ userId, displayName: '管理責任者', role: 'STAFF' }), adminSession.user.id)
     expect(lastAdmin).toMatchObject({ ok: false, error: { code: 'LAST_ADMIN_REQUIRED' } })
     const staffRow = window.locator('.managed-list li').nth(1)
     await staffRow.getByLabel('表示名').fill('店舗担当者')
@@ -58,9 +66,11 @@ test('first setup, restart login, STAFF code setup and Main authorization', asyn
     await window.locator('.editor').getByLabel('カテゴリ').selectOption({ label: '備品' })
     await window.getByRole('button', { name: '登録', exact: true }).click()
     await expect(window.locator('tbody').getByText('BOX_01')).toBeVisible()
-    const listed = await window.evaluate(async () => (window as any).storeApp.products.list({ search: '', categoryId: null, status: 'ALL', stockFilter: 'ALL', sortKey: 'name', direction: 'asc', page: 1, pageSize: 50 }))
-    expect(listed.value.items[0].currentStock).toBe(0)
-    const unsafeUpdate = await window.evaluate(async (productId) => (window as any).storeApp.products.update({ productId, sku: 'BOX_01', name: '50% bundle', categoryId: null, unit: '個', reorderLevel: 0, note: null, currentStock: 999 }), listed.value.items[0].id)
+    const listed = unwrap(await window.evaluate(async () => (window as unknown as BrowserWindow).storeApp.products.list({ search: '', categoryId: null, status: 'ALL', stockFilter: 'ALL', sortKey: 'name', direction: 'asc', page: 1, pageSize: 50 })))
+    const listedProduct = listed.items[0]
+    if (!listedProduct) throw new Error('商品一覧が空です。')
+    expect(listedProduct.currentStock).toBe(0)
+    const unsafeUpdate = await window.evaluate(async (productId) => (window as unknown as BrowserWindow).storeApp.products.update({ productId, sku: 'BOX_01', name: '50% bundle', categoryId: null, unit: '個', reorderLevel: 0, note: null, currentStock: 999 } as unknown as Parameters<BrowserWindow['storeApp']['products']['update']>[0]), listedProduct.id)
     expect(unsafeUpdate).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } })
     await window.getByLabel('SKU・商品名検索').fill('%')
     await expect(window.locator('tbody').getByText('BOX_01')).toBeVisible()
@@ -116,12 +126,14 @@ test('first setup, restart login, STAFF code setup and Main authorization', asyn
     await window.getByLabel('パスワード', { exact: true }).fill('staff first passphrase')
     await window.getByRole('button', { name: 'ログイン' }).click()
     await expect(window.getByText('店舗担当者（STAFF）')).toBeVisible()
-    const denied = await window.evaluate(async () => (window as any).storeApp.users.list())
+    const denied = await window.evaluate(async () => (window as unknown as BrowserWindow).storeApp.users.list())
     expect(denied).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
-    const productDenied = await window.evaluate(async () => (window as any).storeApp.products.create({ sku: 'DENIED', name: '拒否商品', categoryId: null, unit: '個', reorderLevel: 0, note: null, initialStock: 0, imageSelectionId: null }))
+    const productDenied = await window.evaluate(async () => (window as unknown as BrowserWindow).storeApp.products.create({ sku: 'DENIED', name: '拒否商品', categoryId: null, unit: '個', reorderLevel: 0, note: null, initialStock: 0, imageSelectionId: null }))
     expect(productDenied).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
-    const staffProducts = await window.evaluate(async () => (window as any).storeApp.products.list({ search: '', categoryId: null, status: 'ALL', stockFilter: 'ALL', sortKey: 'name', direction: 'asc', page: 1, pageSize: 50 }))
-    const staffStock = await window.evaluate(async (productId) => (window as any).storeApp.stock.record({ productId, type: 'RECEIPT', quantity: 1, reasonCode: 'OTHER', note: null }), staffProducts.value.items[0].id)
+    const staffProducts = unwrap(await window.evaluate(async () => (window as unknown as BrowserWindow).storeApp.products.list({ search: '', categoryId: null, status: 'ALL', stockFilter: 'ALL', sortKey: 'name', direction: 'asc', page: 1, pageSize: 50 })))
+    const staffProduct = staffProducts.items[0]
+    if (!staffProduct) throw new Error('STAFF向け商品一覧が空です。')
+    const staffStock = await window.evaluate(async (productId) => (window as unknown as BrowserWindow).storeApp.stock.record({ productId, type: 'RECEIPT', quantity: 1, reasonCode: 'OTHER', note: null }), staffProduct.id)
     expect(staffStock).toMatchObject({ ok: true, value: { currentStock: 1 } })
   } finally {
     await app.close()

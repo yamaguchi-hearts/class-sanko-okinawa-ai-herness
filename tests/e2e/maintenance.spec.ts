@@ -3,6 +3,8 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+type BrowserWindow = { storeApp: Window['storeApp'] }
+
 test('ADMIN manages idle-lock settings from the sandboxed app and reads its database path', async () => {
   const userData = await mkdtemp(join(tmpdir(), 'inventory-maintenance-e2e-'))
   const env: Record<string, string> = {}
@@ -23,7 +25,7 @@ test('ADMIN manages idle-lock settings from the sandboxed app and reads its data
     await window.getByLabel('無操作ロック（分）').fill('3')
     await window.getByRole('button', { name: '設定を保存' }).click()
     await expect(window.getByRole('status')).toContainText('設定を保存しました')
-    const saved = await window.evaluate(async () => (window as any).storeApp.settings.get())
+    const saved = await window.evaluate(async () => (window as unknown as BrowserWindow).storeApp.settings.get())
     expect(saved).toMatchObject({ ok: true, value: { storeName: '設定E2E店', idleLockMinutes: 3 } })
   } finally {
     await app.close()

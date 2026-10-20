@@ -14,7 +14,7 @@ docs/
 
 Plan、設計書、プロンプトは同じ案件の `<ID>-<slug>` で対応づけます。単一文書は `.md`、機能・要求別に分割する案件は同名ディレクトリの `README.md` を索引にします。まず管理者のPlanを記録し、設計書とプロンプトを作成します。重要な不明点を解消してから実装へ引き継ぎます。各作業の完了時には対象の変更を自動コミットします。
 
-アプリの基本Planは [店舗向け商品在庫管理](docs/plans/0003-store-inventory.md) です。[DEMO差分・pnpm・ESLintのPlan](docs/plans/0004-demo-enhancements.md) と [リリース・ハーネスPlan](docs/plans/0005-release-harness.md) をあわせて参照してください。Plan全体の対応関係は [Plan一覧](docs/plans/README.md)、機能・要求別の設計と実装引き継ぎは [設計索引](docs/specs/0003-store-inventory/README.md) と [実装プロンプト索引](docs/prompts/0003-store-inventory/README.md) にあります。Phase 0〜4の基盤、認証、商品・カテゴリ・ユーザー管理、在庫変更・履歴、CSV、設定、バックアップ/復元、Windows管理者復旧ツールを実装しています。0004ではpnpm移行、ESLint設定、DEMOパスワード、初期在庫、商品画像を実装済みです。TypeScript 7.0.2と現在のtypescript-eslintの互換性問題によりlintは未通過で、Windows配布・画像操作の実機検証も未完了です。
+アプリの基本Planは [店舗向け商品在庫管理](docs/plans/0003-store-inventory.md) です。[DEMO差分・pnpm・ESLintのPlan](docs/plans/0004-demo-enhancements.md) と [リリース・ハーネスPlan](docs/plans/0005-release-harness.md) をあわせて参照してください。Plan全体の対応関係は [Plan一覧](docs/plans/README.md)、機能・要求別の設計と実装引き継ぎは [設計索引](docs/specs/0003-store-inventory/README.md) と [実装プロンプト索引](docs/prompts/0003-store-inventory/README.md) にあります。Phase 0〜4の基盤、認証、商品・カテゴリ・ユーザー管理、在庫変更・履歴、CSV、設定、バックアップ/復元、Windows管理者復旧ツールを実装しています。0004ではpnpm移行、TypeScript 6.0.3への固定、ESLint設定、DEMOパスワード、初期在庫、商品画像を実装済みです。Windows配布・画像操作の実機検証は未完了です。
 
 ### 店舗在庫アプリ Phase 0〜3
 
@@ -42,7 +42,7 @@ pnpm run dist:recovery
 
 Phase 1では番号付きSQLite移行、初期ADMIN、Argon2idログイン、段階的な失敗待機、無操作ロック、本人のパスワード変更、ADMINによるユーザー発行と一度限りの再設定コードを実装しています。Phase 2では商品・カテゴリ・ユーザー管理と商品一覧を追加しました。Phase 3ではMainの在庫サービスに更新を集約し、入庫・出庫・棚卸、在庫履歴、ダッシュボードを追加しました。0004でDEMO用パスワード下限を4文字へ統一し、商品作成時の初期在庫登録と商品画像の保存・表示を追加しています。内部セッショントークンはMainからPreloadへ渡し、Preload内に保持します。Rendererは型付きAPIのみ利用します。
 
-Phase 0〜3の主要確認は `pnpm run typecheck`、`pnpm test`（一時SQLite/サービス統合）、`pnpm run test:e2e`（開発版セットアップ・認証・カタログ・在庫変更・履歴）、`pnpm run dist:win` と `pnpm run test:packaged`（NSIS導入版のDB永続化・Argon2idログイン）です。各実行結果は[検証記録](docs/specs/0003-store-inventory/delivery/verification.md)にあります。0004の短縮入口は `pnpm run check`（lint→型検査→単体テスト）ですが、現状はTypeScript 7.0.2とtypescript-eslintの互換性解消後に通過判定を行います。
+Phase 0〜3の主要確認は `pnpm run typecheck`、`pnpm test`（一時SQLite/サービス統合）、`pnpm run test:e2e`（開発版セットアップ・認証・カタログ・在庫変更・履歴）、`pnpm run dist:win` と `pnpm run test:packaged`（NSIS導入版のDB永続化・Argon2idログイン）です。各実行結果は[検証記録](docs/specs/0003-store-inventory/delivery/verification.md)にあります。0004の短縮入口は `pnpm run check`（lint→型検査→単体テスト）です。
 
 Phase 4の設定はADMINだけが変更できます。店舗名と無操作ロック時間（1〜60分、既定15分）を更新し、ロック時間短縮は最終本人操作時刻に照らして即時再評価します。商品一覧のCSV出力は画面の検索・カテゴリ・状態・在庫条件・ソートを保ち、一致する全件をUTF-8 BOM/CRLFで保存します。保存ダイアログのキャンセルも監査されます。Excelでの表示確認はWindows実機と対象Excel版で行い、結果を検証記録に残してください。
 

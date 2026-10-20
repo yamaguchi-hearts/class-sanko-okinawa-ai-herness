@@ -41,4 +41,4 @@
 5. NSIS版・復旧exeがpnpm由来の依存構成で動き、SQLite/Argon2idを利用できる。
 6. 更新インストールで既存DBを保持し、新規移行を一度だけ適用する。
 
-実装時点ではpnpm frozen導入、型検査、単体/DBテスト、ビルド、開発版の認証・保守・起動E2Eを実行済み。lintはTypeScript 7.0.2を現在のtypescript-eslintがサポートしないため未通過で、画像操作を含む統合E2E、NSIS/復旧exe、更新導入、Windows/Excel/昇格復旧の実機検証は未実行として扱う。
+実装時点ではpnpm frozen導入、TypeScript 6.0.3での型検査、単体/DBテスト、ビルド、lint、開発版の認証・保守・起動E2Eを実行済み。画像操作を含む統合E2E、NSIS/復旧exe、更新導入、Windows/Excel/昇格復旧の実機検証は未実行として扱う。
