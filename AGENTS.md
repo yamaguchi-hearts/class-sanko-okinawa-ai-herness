@@ -2,8 +2,8 @@
 
 ## 役割の選択
 
-- 管理者のPlanから設計書と実装者へのプロンプトを作る依頼には、[software-designer](skills/software-designer/SKILL.md) を使用してください。通常は設計と引き継ぎまでを担当します。
-- 設計書・実装プロンプトを基に実装する依頼には、[software-implementer](skills/software-implementer/SKILL.md) を使用してください。実装者は GPT6-Luna［High］を想定しています。
+- 管理者のPlanから設計書と実装者へのプロンプトを作る依頼には、[software-designer](.agents/skills/software-designer/SKILL.md) を使用してください。通常は設計と引き継ぎまでを担当します。
+- 設計書・実装プロンプトを基に実装する依頼には、[software-implementer](.agents/skills/software-implementer/SKILL.md) を使用してください。実装者は GPT6-Luna［High］を想定しています。
 - Skill自体の更新など、上記以外の作業は管理者の依頼に従ってください。
 - 過去の会話を前提にせず、対象Planと関連資料を読んで再開してください。
 
@@ -13,4 +13,4 @@
 - Planは `docs/plans/`、設計書は `docs/specs/`、実装プロンプトは `docs/prompts/` に置きます。関連ファイルの名前を `<4桁ID>-<英小文字とハイフンのslug>.md` でそろえ、既存IDは別の案件に再利用しません。
 - 重要な不明点は管理者に質問し、未回答の事項を確定扱いしないでください。
 - 作業完了時は今回の変更を明示してステージし、日本語で自動コミットしてください。変更がない場合は空コミット不要です。無関係な変更を含めず、コミット結果とGit状態を確認し、失敗時は原因を報告してください。pushは別途依頼がある場合に限ります。
-- Skill原本は `skills/` に置きます。更新時はユーザーのSkillsフォルダーに配置した同名Skillも同期してください。ユーザー側に独自の変更があれば、確認せず上書きしないでください。
+- Skillはこのリポジトリの `.agents/skills/` に置き、Gitで管理します。更新対象はリポジトリ内のSkillとし、ユーザー共通のSkillsフォルダーへの配置・同期は別途依頼がある場合に限ります。

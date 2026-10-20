@@ -7,15 +7,15 @@ GPT6-Luna［High］の実装者として、作成済みのSkillを検証し、�
 - `AGENTS.md`
 - `docs/plans/0002-role-skills.md`
 - `docs/specs/0002-role-skills.md`
-- `skills/software-designer/SKILL.md`
-- `skills/software-implementer/SKILL.md`
+- `.agents/skills/software-designer/SKILL.md`
+- `.agents/skills/software-implementer/SKILL.md`
 
 ## 作業
 
 1. 指示とGit状態を読み、既存の変更を保護する。
 2. 設計者と実装者の説明・責務が分かれ、配置、日本語、自動コミット、質問の方針を保持していることを確認する。
 3. `skill-creator` が利用可能ならその手順で形式検証する。検証ツールがない場合は代替確認と未実行の範囲を報告する。
-4. 修正があれば配布原本とユーザー側のSkillを同期する。配置先に独自変更がある場合は上書きせず確認する。
+4. 修正はリポジトリ内の `.agents/skills/` に反映する。旧 `skills/` に重複がないことを確認する。ユーザー共通のSkillsフォルダーは変更しない。
 5. ローカル参照、差分、設計書の受け入れ条件を確認する。変更がある場合のみ対象ファイルを明示して日本語で自動コミットする。
 6. 検証結果、変更内容、コミットID、残る課題を日本語で報告する。
 

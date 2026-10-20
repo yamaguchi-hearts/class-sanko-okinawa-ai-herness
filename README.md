@@ -4,7 +4,7 @@
 
 ```text
 AGENTS.md          再利用する作業指示
-skills/            設計者用・実装者用Skillの配布原本
+.agents/skills/    設計者用・実装者用のリポジトリ内Skill
 docs/
   plans/           管理者のPlanと出典
   specs/           ソフトウェアの設計書
@@ -16,7 +16,7 @@ Plan、設計書、プロンプトは同じ `<ID>-<slug>.md` で対応づけま�
 
 初期構成については [Plan](docs/plans/0001-repository-structure.md)、[設計書](docs/specs/0001-repository-structure.md)、[引き継ぎプロンプト](docs/prompts/0001-repository-structure.md) を参照してください。アプリケーションの技術スタック、ソース配置、ビルド方法は今後のPlanに応じて決定します。
 
-再利用するSkillは [設計者用](skills/software-designer/SKILL.md) と [実装者用](skills/software-implementer/SKILL.md) です。各フォルダーを `$CODEX_HOME/skills/`（未設定時は `~/.codex/skills/`）へ配置します。この環境には両方を配置済みです。新しい会話で、例えば次のように依頼できます。
+再利用するSkillは [設計者用](.agents/skills/software-designer/SKILL.md) と [実装者用](.agents/skills/software-implementer/SKILL.md) です。このリポジトリの `.agents/skills/` に配置してGitで管理します。ユーザー共通のSkillsフォルダーへのコピーは不要です。このリポジトリを開いた新しい会話で、例えば次のように依頼できます。
 
 - `$software-designer このPlanを基に設計書と実装プロンプトを作成してください。`
 - `$software-implementer docs/prompts/0001-repository-structure.md に従って作業してください。`
