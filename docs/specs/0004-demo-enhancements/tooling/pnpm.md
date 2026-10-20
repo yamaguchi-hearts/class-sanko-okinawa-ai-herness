@@ -33,6 +33,10 @@
 - Windowsパッケージ版でSQLite保存・Argon2id照合が動き、復旧exeも生成できる。
 - install時に必要なビルドを黙ってスキップして成功扱いしない。未検証なら明記する。
 
+## 実装時の固定とビルド補完
+
+pnpm 10.26.1とlockfile v9へ移行した。`allowBuilds` はargon2、better-sqlite3、electron-winstallerだけに限定し、`strictDepBuilds: true` を明示する。VS18でpnpm内蔵node-gyp 11.5.0が検出に失敗したため、`packageExtensions` でbetter-sqlite3 13.0.3だけにnode-gyp 13.1.0を補完した。アプリの業務依存バージョンとNode固定値は変更しない。クリーン導入と配布版の結果は[検証記録](../../0003-store-inventory/delivery/verification.md)の0004節を参照。
+
 ## 根拠
 
 pnpmの設定先と依存ビルド許可は [公式設定](https://pnpm.io/settings) と [Build Settings](https://pnpm.io/settings/build) を確認する。設定名は採用バージョンに合わせ、未検証の最新バージョンを文書だけで固定しない。

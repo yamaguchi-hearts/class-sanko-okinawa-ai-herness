@@ -16,7 +16,7 @@ test('opens a sandboxed renderer with no Node integration', async () => {
     try {
       await expect(window.getByRole('heading', { name: '初期セットアップ' })).toBeVisible()
     } catch (error) {
-      throw new Error(`${error instanceof Error ? error.message : String(error)}\nMain process output:\n${startupLogs}`)
+      throw new Error(`${error instanceof Error ? error.message : String(error)}\nMain process output:\n${startupLogs}`, { cause: error })
     }
     expect(await window.evaluate(() => ({ process: typeof process, require: typeof require }))).toEqual({ process: 'undefined', require: 'undefined' })
   } finally {

@@ -87,15 +87,18 @@ function App(): React.JSX.Element {
     else setError(result.error.message)
     setHistoryLoading(false)
   }, [movementQuery])
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- Polling synchronizes session state through asynchronous IPC.
   useEffect(() => { void refresh(); const timer = window.setInterval(() => void refresh(), 1000); return () => window.clearInterval(timer) }, [refresh])
   useEffect(() => {
     if (session?.state !== 'AUTHENTICATED') return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Shared IPC loaders also manage the loading indicator for query changes.
     if (session.user.role === 'ADMIN') void refreshUsers()
     void refreshCategories()
     void refreshProducts(query)
   }, [session?.state, session?.user.id, session?.user.role, query, refreshUsers, refreshCategories, refreshProducts])
   useEffect(() => {
     if (session?.state !== 'AUTHENTICATED') return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Dashboard state is populated by asynchronous IPC responses.
     void refreshDashboard()
     void refreshMovementActors()
   }, [session?.state, session?.user.id, refreshDashboard, refreshMovementActors])
@@ -104,6 +107,7 @@ function App(): React.JSX.Element {
     void window.storeApp.settings.get().then((r) => { if (r.ok) setSettings(r.value); else setError(r.error.message) })
   }, [tab, session?.user.role])
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Shared IPC history loading preserves the query loading indicator.
     if (session?.state === 'AUTHENTICATED' && tab === 'history') void refreshMovements(movementQuery)
   }, [session?.state, session?.user.id, tab, movementQuery, refreshMovements])
 

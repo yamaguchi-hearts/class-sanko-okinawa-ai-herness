@@ -23,7 +23,7 @@ test('ADMIN manages idle-lock settings from the sandboxed app and reads its data
     await window.getByLabel('無操作ロック（分）').fill('3')
     await window.getByRole('button', { name: '設定を保存' }).click()
     await expect(window.getByRole('status')).toContainText('設定を保存しました')
-    const saved = await window.evaluate(async () => (window as any).storeApp.settings.get())
+    const saved = await window.evaluate(async () => globalThis.window.storeApp.settings.get())
     expect(saved).toMatchObject({ ok: true, value: { storeName: '設定E2E店', idleLockMinutes: 3 } })
   } finally {
     await app.close()

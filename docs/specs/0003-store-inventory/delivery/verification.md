@@ -87,6 +87,24 @@ Phase 1/2の移行を変更せず、移行4に`stock_movements`と商品・日�
 
 Phase 4は完了扱いしない。現Windows実行ユーザーは非管理者のためUAC昇格後の既存ADMINコード発行→本人再設定→通常ログイン、および破損DBからの復元を実行していない。同時起動中の実exeによる排他確認、復元中の実プロセス強制終了/電源断、事前バックアップ・接続停止・監査の各故障注入、ダイアログキャンセルのWindows E2E、Windows Excelでの式/日本語表示も未検証である。アプリ・復旧exeの同一ディレクトリロックは共通方式を使用し、アプリ内の復元マーカー回復はDB統合テストで模擬確認したが、これらは未実施のWindows運用ゲートの代替ではない。
 
+## 0004-01 pnpm・ESLint実行結果（2026-10-20）
+
+Windows 10.0.26300 x64、Node 24.21.0、pnpm 10.26.1、Visual Studio 18 Communityのx64開発環境で実施。Nodeのリポジトリ固定値24.19.0は維持しているためengine警告が出る。24.19.0そのものでは今回再検証していない。
+
+TypeScriptのCLIは7.0.2のまま、公式互換パッケージ6.0.2（公開APIは6.0.3）をlint用に併用した。初回のTS7直接参照ではtypescript-eslintがロードを拒否したが、併用後はparser・ESLint推奨ルールが動作する。ESLintの警告は0件。CSV制御文字検査と4つの非同期IPC取得Effectだけに理由付き行単位例外を置いた。
+
+| コマンド/確認 | 結果 |
+| --- | --- |
+| `pnpm exec tsc --version` / `tsc6 --version` | 7.0.2 / 6.0.3。型検査は前者を使用 |
+| クリーン `pnpm install --frozen-lockfile --side-effects-cache=false` | 成功。node_modulesを退避して再導入。argon2/better-sqlite3/electron-winstallerのbuildとElectron ABI再構築を実行、lockfileのSHA256不変 |
+| `pnpm run test:lint` | 6件成功。正常TSX、Hooks呼出順序/依存配列、深い相対パスを含むRenderer禁止import、環境別globals、生成物除外、CLI正常0/違反1を確認 |
+| `pnpm run check` | lint警告0、TS7型検査、単体・DB31件/5ファイルが成功 |
+| `pnpm run test:e2e` | ビルド成功、認証・在庫/認可・設定・sandboxの3件成功 |
+| `pnpm run dist:win` / `pnpm run test:packaged` | NSIS生成成功。隔離インストール先でSQLite永続化・再起動後のArgon2id認証1件成功 |
+| `pnpm run dist:recovery` | Windows x64 portable復旧exe生成成功。昇格後の実操作を新たに検証したものではない |
+
+クリーン導入でpnpm内蔵node-gyp 11.5.0がVS18を認識できず失敗したため、better-sqlite3 13.0.3限定のpackageExtensionsでnode-gyp 13.1.0を補完して解消した。ビルドスクリプトの無効化で回避していない。TS7固有構文と互換parserの将来的な差には注意する。既存Phase 4の未検証項目と製品全体のリリースゲートは変更しない。
+
 ## 単体・DB・IPCの検証表
 
 | 対象 | 主な確認 | 要求ID |

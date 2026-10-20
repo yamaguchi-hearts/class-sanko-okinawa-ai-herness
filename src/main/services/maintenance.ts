@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import { randomUUID, createHash } from 'node:crypto'
 import { copyFile, mkdir, rename, rm, readFile, readdir, writeFile } from 'node:fs/promises'
 import { existsSync, copyFileSync, createReadStream, createWriteStream, openSync, fsyncSync, closeSync, renameSync, rmSync } from 'node:fs'
-import { dirname, basename, join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { once } from 'node:events'
 import { finished } from 'node:stream/promises'
 import type { ProductListQuery, Role, AppSettings, BackupCandidate } from '../../shared/contracts'
@@ -21,6 +21,7 @@ async function sha256File(path: string): Promise<string> {
   return hash.digest('hex')
 }
 export function safeCsvText(value: string): string {
+  // eslint-disable-next-line no-control-regex -- CSV formula protection deliberately checks leading control characters.
   const unsafe = /^[\u0000-\u0020\u007f]+[=+\-@]/.test(value) || /^[=+\-@]/.test(value) || /^[\u0000-\u001f\u007f]/.test(value)
   return quote(unsafe ? `'${value}` : value)
 }

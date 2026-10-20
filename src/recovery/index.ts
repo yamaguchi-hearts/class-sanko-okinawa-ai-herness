@@ -62,7 +62,7 @@ async function recoverDamagedDatabase(target: string, directory: string): Promis
   let candidatePath: string
   try { candidatePath = await validateBackupCandidate(pick.filePaths[0], directory) } catch (error) { await dialog.showErrorBox('復元できません', error instanceof Error ? error.message : '候補が無効です。'); return }
   const selected = new Database(candidatePath, { readonly: true })
-  let name = ''
+  let name: string
   try { name = storeName(selected) } finally { selected.close() }
   const confirm = await dialog.showMessageBox({ type: 'warning', title: 'データベースの復元確認', message: `対象: ${target}\n復元先店舗: ${name}\n現在のファイルを退避して置き換えます。続行しますか？`, buttons: ['復元する','キャンセル'], defaultId: 1, cancelId: 1, noLink: true })
   if (confirm.response !== 0) { await rm(candidatePath, { force: true }); return }

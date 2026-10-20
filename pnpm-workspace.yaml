@@ -1,3 +1,8 @@
+strictDepBuilds: true
+packageExtensions:
+  better-sqlite3@13.0.3:
+    dependencies:
+      node-gyp: 13.1.0
 allowBuilds:
   argon2: true
   better-sqlite3: true

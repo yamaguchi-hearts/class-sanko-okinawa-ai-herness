@@ -8,6 +8,10 @@ GPT6-Luna［High］の実装者として [共通指示](README.md) に従う。
 - `docs/specs/0004-demo-enhancements/tooling/lint.md`
 - `package.json`、`package-lock.json`、既存electron-builder設定、`tsconfig.json`、README。
 
+## 再開時の状態（2026-10-20）
+
+pnpm 10.26.1への移行とESLint導入は実施済み。npm lockは移行時に削除済みのため、再開時は `pnpm-lock.yaml` と `pnpm-workspace.yaml` を読む。TS7 CLIとTS6互換APIの公式併用構成を採用し、`pnpm exec tsc --version` が7.0.2であることを維持する。`pnpm run check`、`pnpm run test:lint`、E2E、NSIS、配布版、復旧exe生成は[検証記録](../../specs/0003-store-inventory/delivery/verification.md)を参照。Phase 4の未検証運用項目まで完了したとは扱わない。
+
 ## 実装範囲
 
 1. 最新のGit状態とNode/依存を確認し、pnpmとESLint/parserの互換性を公式資料と実行結果で確認する。既存TypeScriptの無断降格はしない。

@@ -24,6 +24,8 @@ Plan、設計書、プロンプトは同じ案件の `<ID>-<slug>` で対応づ�
 
 ```powershell
 pnpm install --frozen-lockfile
+pnpm run check
+pnpm run test:lint
 pnpm run typecheck
 pnpm test
 pnpm run test:e2e
@@ -33,6 +35,12 @@ pnpm run dist:win
 pnpm run test:packaged
 pnpm run dist:recovery
 ```
+
+pnpmが未導入の場合はCorepackの `corepack enable pnpm` でコマンドを有効にしてください。型検査の `tsc` は `@typescript/native` の別名で固定したTypeScript 7.0.2を使用します。`typescript` の別名にはESLint用の公式互換パッケージ `@typescript/typescript6@6.0.2`（公開APIは6.0.3）を配置し、型検査を6系へ戻しません。`tsc6` は互換API側のコマンドであり、通常の型検査には使用しません。
+
+`pnpm run lint` はESLintの警告も失敗扱いとし、`lint:fix` は明示的な自動修正、`check` はlint・TS7型検査・単体/DBテストを順番に実行します。`test:lint` はHooks違反、Rendererの禁止import、環境別globals、生成物除外、CLI終了コードを検証します。TS7固有構文を追加する場合は互換parserでも解析できるか確認してください。
+
+Windowsのクリーン導入にはVisual C++ツールチェーンが必要です。Visual Studio 2026（18.x）ではx64 Native Tools環境を利用してください。pnpm内蔵node-gyp 11.5.0はVS18を検出できないため、`pnpm-workspace.yaml` でbetter-sqlite3 13.0.3だけにnode-gyp 13.1.0を補完しています。依存ビルドは明示許可したものだけ実行し、未承認ビルドでは失敗します。
 
 `test:packaged` は `dist:win` の後に実行し、パッケージ化されたWindows x64アプリの隔離データ領域で終了・再起動後のSQLite読込とArgon2id照合を確認します。
 
