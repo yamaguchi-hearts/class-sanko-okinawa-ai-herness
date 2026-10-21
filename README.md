@@ -8,6 +8,7 @@ Windows x64、Node.js 24.19.0、pnpm 12.14.0を使用します。初回セット
 
 ```powershell
 pnpm install --frozen-lockfile
+pnpm run build
 pnpm run dev
 ```
 
