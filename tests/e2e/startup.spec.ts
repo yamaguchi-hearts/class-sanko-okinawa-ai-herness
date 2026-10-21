@@ -8,7 +8,7 @@ test('opens a sandboxed renderer with no Node integration', async () => {
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined) env[key] = value
   delete env.ELECTRON_RUN_AS_NODE
-  const app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`], env })
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`, `--app-data-dir=${userData}`], env })
   let startupLogs = ''
   app.process().stderr?.on('data', (chunk: Buffer) => { startupLogs += chunk.toString() })
   try {
