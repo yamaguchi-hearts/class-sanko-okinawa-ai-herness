@@ -4,3 +4,6 @@ release/
 test-results/
 playwright-report/
 coverage/
+store-inventory.sqlite
+store-inventory.sqlite-shm
+store-inventory.sqlite-wal
