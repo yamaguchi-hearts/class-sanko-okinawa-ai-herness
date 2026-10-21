@@ -1,7 +1,6 @@
 import { createRequire } from 'node:module'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { dirname, join } from 'node:path'
 
 const electronPackagePath = createRequire(import.meta.url).resolve('electron/package.json')
 const electronPackage = JSON.parse(readFileSync(electronPackagePath, 'utf8'))
@@ -21,6 +20,7 @@ if (process.platform !== 'win32' || process.arch !== 'x64') {
 
   if (!isInstalled) {
     const { downloadArtifact } = packageRequire('@electron/get')
+    const extractZip = createRequire(import.meta.url)('extract-zip')
     const checksums = JSON.parse(readFileSync(join(electronDirectory, 'checksums.json'), 'utf8'))
     const archivePath = await downloadArtifact({
       version,
@@ -31,22 +31,7 @@ if (process.platform !== 'win32' || process.arch !== 'x64') {
     })
 
     mkdirSync(distDirectory, { recursive: true })
-    const result = spawnSync('powershell.exe', [
-      '-NoProfile',
-      '-NonInteractive',
-      '-Command',
-      '$ErrorActionPreference = \'Stop\'; Expand-Archive -LiteralPath $env:ELECTRON_DEMO_ARCHIVE -DestinationPath $env:ELECTRON_DEMO_DIST -Force'
-    ], {
-      stdio: 'inherit',
-      env: {
-        ...process.env,
-        ELECTRON_DEMO_ARCHIVE: resolve(archivePath),
-        ELECTRON_DEMO_DIST: resolve(distDirectory)
-      }
-    })
-
-    if (result.error) throw result.error
-    if (result.status !== 0) throw new Error(`Electron ZIP展開に失敗しました (exit ${result.status})`)
+    await extractZip(archivePath, distDirectory)
     if (!existsSync(executablePath)) throw new Error('展開後にelectron.exeが見つかりません。')
 
     writeFileSync(join(distDirectory, 'version'), `v${version}`)
