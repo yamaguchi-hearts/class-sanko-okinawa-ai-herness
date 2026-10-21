@@ -11,7 +11,7 @@
   "main": "out/main/index.js",
   "scripts": {
     "postinstall": "node scripts/install-electron.mjs",
-    "dev": "electron-vite dev",
+    "dev": "node scripts/dev.mjs",
     "dev:renderer": "vite --config vite.renderer.config.mts",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
