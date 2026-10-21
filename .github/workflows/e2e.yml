@@ -1,4 +1,4 @@
-name: E2E
+name: Electron tests
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  e2e:
+  test:
     runs-on: windows-latest
     timeout-minutes: 30
 
@@ -28,7 +28,49 @@ jobs:
       - name: 依存関係をインストール
         run: pnpm install --frozen-lockfile
 
+      - name: Unitテストを実行
+        run: pnpm run test -- --reporter=json --outputFile=unit-test-report/results.json
+        continue-on-error: true
+
+      - name: Unitテスト結果をHTMLに変換
+        if: always()
+        shell: pwsh
+        run: |
+          $resultsPath = "unit-test-report/results.json"
+          if (Test-Path $resultsPath) {
+            $results = Get-Content $resultsPath -Raw | ConvertFrom-Json
+            $rows = foreach ($test in $results.testResults) {
+              foreach ($assertion in $test.assertionResults) {
+                $status = [System.Net.WebUtility]::HtmlEncode($assertion.status)
+                $title = [System.Net.WebUtility]::HtmlEncode(($assertion.ancestorTitles + $assertion.title) -join " › ")
+                "<tr><td>$status</td><td>$title</td></tr>"
+              }
+            }
+            $summary = "Passed: $($results.numPassedTests), Failed: $($results.numFailedTests), Skipped: $($results.numPendingTests)"
+            $html = "<!doctype html><meta charset='utf-8'><title>Unit test report</title><h1>Unit test report</h1><p>$summary</p><table><thead><tr><th>Status</th><th>Test</th></tr></thead><tbody>$($rows -join "`n")</tbody></table>"
+            Set-Content -Path "unit-test-report/index.html" -Value $html
+          }
+
+      - name: Unitテストの失敗を反映
+        if: always()
+        shell: pwsh
+        run: |
+          $results = Get-Content "unit-test-report/results.json" -Raw | ConvertFrom-Json
+          if ($results.numFailedTests -gt 0 -or $results.numFailedTestSuites -gt 0) {
+            exit 1
+          }
+
       - name: E2Eテストを実行
         run: pnpm run test:e2e
         env:
           CI: true
+
+      - name: テストレポートをartifactとして保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-test-reports
+          path: |
+            unit-test-report/
+            playwright-report/
+          if-no-files-found: warn
