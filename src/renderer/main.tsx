@@ -212,9 +212,9 @@ function App(): React.JSX.Element {
 
   if (setupRequired === null) return <main className="shell"><p role="status">起動しています…</p></main>
   if (recoveryRequired) return <main className="shell"><section className="card"><h1>管理者による復旧が必要です</h1><p className="error" role="alert">{error}</p><p>通常の初期セットアップから権限を再作成することはできません。データベースを保持し、管理者復旧手順を確認してください。</p></section></main>
-  if (setupRequired) return <main className="shell"><section className="card"><h1>初期セットアップ</h1><p>店舗と最初の管理者を登録します。</p>
+  if (setupRequired) return <main className="shell"><section className="card"><h1>初期セットアップ</h1><p>店舗と最初の管理者を登録します。サンプルカテゴリ3件と商品6件を追加します。</p>
     <form onSubmit={(e) => void onSubmit(e, async (f) => {
-      const result = await window.storeApp.setup.createInitialAdmin({ storeName: String(f.get('storeName') ?? ''), displayName: String(f.get('displayName') ?? ''), loginName: String(f.get('loginName') ?? ''), password: String(f.get('password') ?? ''), confirmPassword: String(f.get('confirmPassword') ?? '') })
+      const result = await window.storeApp.setup.createInitialAdmin({ storeName: String(f.get('storeName') ?? ''), displayName: String(f.get('displayName') ?? ''), loginName: String(f.get('loginName') ?? ''), password: String(f.get('password') ?? ''), confirmPassword: String(f.get('confirmPassword') ?? ''), includeDemoData: true })
       if (result.ok) setSession(result.value); else showError(result)
     })}>
       <label>店舗名<input name="storeName" required maxLength={100} /></label><label>管理者表示名<input name="displayName" required maxLength={100} /></label><label>ログインID<input name="loginName" required maxLength={64} autoComplete="username" /></label><label>パスワード（4〜128文字）<input name="password" required minLength={4} maxLength={128} type="password" autoComplete="new-password" /></label><label>パスワード（確認）<input name="confirmPassword" required minLength={4} maxLength={128} type="password" autoComplete="new-password" /></label>

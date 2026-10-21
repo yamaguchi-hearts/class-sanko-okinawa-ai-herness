@@ -59,7 +59,7 @@ export type BackupCandidate = Readonly<{ candidateId: string; storeName: string;
 export type PublicErrorCode = 'VALIDATION_ERROR' | 'AUTH_REQUIRED' | 'AUTH_FAILED' | 'SESSION_EXPIRED' | 'ACCOUNT_LOCKED' | 'FORBIDDEN' | 'DUPLICATE_LOGIN' | 'DUPLICATE_SKU' | 'DUPLICATE_CATEGORY' | 'LAST_ADMIN_REQUIRED' | 'NOT_FOUND' | 'INACTIVE_ENTITY' | 'INSUFFICIENT_STOCK' | 'DATABASE_BUSY' | 'DATABASE_ERROR' | 'RECOVERY_REQUIRED' | 'BACKUP_INVALID' | 'BACKUP_FAILED' | 'RESTORE_FAILED'
 export type IpcResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: Readonly<{ code: PublicErrorCode; message: string }> }>
 
-export type SetupInput = Readonly<{ storeName: string; displayName: string; loginName: string; password: string; confirmPassword: string }>
+export type SetupInput = Readonly<{ storeName: string; displayName: string; loginName: string; password: string; confirmPassword: string; includeDemoData?: boolean }>
 export type LoginInput = Readonly<{ loginName: string; password: string }>
 export type PasswordChangeInput = Readonly<{ currentPassword: string; newPassword: string; confirmPassword: string }>
 export type ResetInput = Readonly<{ loginName: string; code: string }>

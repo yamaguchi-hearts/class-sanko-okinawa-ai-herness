@@ -2,6 +2,7 @@ import argon2 from 'argon2'
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import type { StoreDatabase } from '../db/connection'
 import { audit, type AuditActor } from '../services/audit'
+import { seedDemoData } from '../demo/seed'
 import { issueResetCode } from './reset-code'
 import type { CreateUserInput, Role, SessionView, UserSummary } from '../../shared/contracts'
 
@@ -137,10 +138,11 @@ export class AuthService {
     return null
   }
 
-  async setup(input: { storeName: string; displayName: string; loginName: string; password: string }, senderId: number): Promise<{ token: string; view: SessionView }> {
+  async setup(input: { storeName: string; displayName: string; loginName: string; password: string; includeDemoData?: boolean }, senderId: number): Promise<{ token: string; view: SessionView }> {
     const normalized = normalizedLogin(input.loginName)
     const hash = await argon2.hash(input.password, ARGON_OPTIONS)
     const id = randomUUID(); const now = nowIso(this.clock())
+    const actor: AuditActor = { id, loginName: normalized, displayName: input.displayName.trim(), role: 'ADMIN' }
     this.db.transaction(() => {
       if (this.getMeta('setup_completed_at')) throw new AppError('FORBIDDEN')
       const anyUser = this.db.prepare('SELECT 1 FROM users LIMIT 1').get()
@@ -150,8 +152,9 @@ export class AuthService {
       this.db.prepare("INSERT INTO app_settings(key,value,updated_at) VALUES('idle_lock_minutes','15',?)").run(now)
       this.db.prepare("INSERT INTO app_meta(key,value) VALUES('store_name',?)").run(input.storeName.trim())
       this.db.prepare("INSERT INTO app_meta(key,value) VALUES('setup_completed_at',?)").run(now)
-      audit(this.db, 'SETUP_COMPLETED', { id, loginName: normalized, displayName: input.displayName.trim(), role: 'ADMIN' }, 'user', id, { storeName: input.storeName.trim() })
-      audit(this.db, 'LOGIN_SUCCEEDED', { id, loginName: normalized, displayName: input.displayName.trim(), role: 'ADMIN' }, 'user', id)
+      if (input.includeDemoData) seedDemoData(this.db, actor, now)
+      audit(this.db, 'SETUP_COMPLETED', actor, 'user', id, { storeName: input.storeName.trim(), demoDataSeeded: Boolean(input.includeDemoData) })
+      audit(this.db, 'LOGIN_SUCCEEDED', actor, 'user', id)
     }).immediate()
     this.lockContexts.delete(senderId)
     return this.issueSession({ id, login_name: normalized, display_name: input.displayName.trim(), password_hash: hash, role: 'ADMIN', is_active: 1, must_change_password: 0, failed_login_count: 0, locked_until: null }, senderId)

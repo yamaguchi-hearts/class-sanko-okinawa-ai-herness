@@ -16,11 +16,17 @@ const trimmedField = (v: Record<string, unknown>, key: string, min: number, max:
   const trimmed = value.trim()
   return [...trimmed].length >= min && [...trimmed].length <= max ? trimmed : undefined
 }
-function parse<T>(input: unknown, fields: Record<string, (v: Record<string, unknown>) => unknown>, required: readonly string[]): ValidationResult<T> {
-  if (!isRecord(input) || Object.keys(input).some((key) => !required.includes(key))) return { ok: false, issues: [{ path: '', message: '入力形式が正しくありません。' }] }
+function parse<T>(input: unknown, fields: Record<string, (v: Record<string, unknown>) => unknown>, required: readonly string[], optional: readonly string[] = []): ValidationResult<T> {
+  if (!isRecord(input) || Object.keys(input).some((key) => !required.includes(key) && !optional.includes(key))) return { ok: false, issues: [{ path: '', message: '入力形式が正しくありません。' }] }
   const output: Record<string, unknown> = {}
   const issues: ValidationIssue[] = []
   for (const key of required) {
+    const value = fields[key]?.(input)
+    if (value === undefined) issues.push({ path: key, message: '入力内容を確認してください。' })
+    else output[key] = value
+  }
+  for (const key of optional) {
+    if (input[key] === undefined) continue
     const value = fields[key]?.(input)
     if (value === undefined) issues.push({ path: key, message: '入力内容を確認してください。' })
     else output[key] = value
@@ -42,8 +48,9 @@ const password = (v: Record<string, unknown>, key: string): string | undefined =
 }
 export const validateSetup = (v: unknown) => parse<SetupInput>(v, {
   storeName: (x) => name(x, 'storeName'), displayName: (x) => name(x, 'displayName'), loginName: login,
-  password: (x) => password(x, 'password'), confirmPassword: (x) => password(x, 'confirmPassword')
-}, ['storeName', 'displayName', 'loginName', 'password', 'confirmPassword'])
+  password: (x) => password(x, 'password'), confirmPassword: (x) => password(x, 'confirmPassword'),
+  includeDemoData: (x) => typeof x.includeDemoData === 'boolean' ? x.includeDemoData : undefined
+}, ['storeName', 'displayName', 'loginName', 'password', 'confirmPassword'], ['includeDemoData'])
 export const validateLogin = (v: unknown) => parse<LoginInput>(v, { loginName: login, password: (x) => stringField(x, 'password', 1, 128) }, ['loginName', 'password'])
 export const validatePasswordChange = (v: unknown) => parse<PasswordChangeInput>(v, {
   currentPassword: (x) => stringField(x, 'currentPassword', 1, PASSWORD_MAX_LENGTH), newPassword: (x) => password(x, 'newPassword'), confirmPassword: (x) => password(x, 'confirmPassword')
