@@ -90,7 +90,7 @@ app.whenReady().then(async () => {
     })
   })
   const userData = app.getPath('userData')
-  const dataDirectory = app.isPackaged ? userData : app.getAppPath()
+  const dataDirectory = app.isPackaged || userDataArg ? userData : app.getAppPath()
   mkdirSync(dataDirectory, { recursive: true })
   releaseDataLock = await lockfile.lock(dataDirectory, { realpath: false, retries: 0, stale: 15_000, update: 5_000 })
   if (verificationMode) {
