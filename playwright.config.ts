@@ -6,7 +6,7 @@ export default defineConfig({
   timeout: 60_000,
   reporter: 'list',
   webServer: {
-    command: 'corepack pnpm run dev:renderer',
+    command: 'node node_modules/vite/bin/vite.js --config vite.renderer.config.mts',
     url: 'http://127.0.0.1:5173/',
     reuseExistingServer: !process.env.CI,
     timeout: 30_000

@@ -10,7 +10,7 @@ test('ADMIN manages idle-lock settings from the sandboxed app and reads its data
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined) env[key] = value
   delete env.ELECTRON_RUN_AS_NODE
-  const app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`, `--app-data-dir=${userData}`], env })
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`], env })
   try {
     const window = await app.firstWindow()
     await window.getByLabel('店舗名').fill('設定E2E店')
