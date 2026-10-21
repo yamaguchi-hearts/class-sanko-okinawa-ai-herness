@@ -16,7 +16,7 @@ test('first setup, restart login, STAFF code setup and Main authorization', asyn
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined) env[key] = value
   delete env.ELECTRON_RUN_AS_NODE
-  let app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`], env })
+  let app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`, `--app-data-dir=${userData}`], env })
   try {
     let window = await app.firstWindow()
     await window.getByLabel('店舗名').fill('E2E店舗')
@@ -29,7 +29,7 @@ test('first setup, restart login, STAFF code setup and Main authorization', asyn
     await window.getByRole('button', { name: '商品一覧' }).click()
     await app.close()
 
-    app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`], env })
+    app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`, `--app-data-dir=${userData}`], env })
     window = await app.firstWindow()
     await expect(window.getByRole('heading', { name: '沖縄店舗在庫管理' })).toBeVisible()
     const anonymous = await window.evaluate(async () => (window as unknown as BrowserWindow).storeApp.users.list())
@@ -56,7 +56,7 @@ test('first setup, restart login, STAFF code setup and Main authorization', asyn
     await staffRow.getByLabel('表示名').fill('店舗担当者')
     await staffRow.getByRole('button', { name: '変更を保存' }).click()
     await window.getByRole('button', { name: 'カテゴリ管理' }).click()
-    await window.getByLabel('カテゴリ名').fill('備品')
+    await window.locator('form').filter({ hasText: 'カテゴリを追加' }).getByLabel('カテゴリ名').fill('備品')
     await window.getByRole('button', { name: 'カテゴリを追加' }).click()
     await expect(window.locator('.managed-list').getByText('有効')).toBeVisible()
     await window.getByRole('button', { name: '商品一覧' }).click()
