@@ -90,7 +90,9 @@ app.whenReady().then(async () => {
     })
   })
   const userData = app.getPath('userData')
-  releaseDataLock = await lockfile.lock(userData, { realpath: false, retries: 0, stale: 15_000, update: 5_000 })
+  const dataDirectory = app.isPackaged ? userData : app.getAppPath()
+  mkdirSync(dataDirectory, { recursive: true })
+  releaseDataLock = await lockfile.lock(dataDirectory, { realpath: false, retries: 0, stale: 15_000, update: 5_000 })
   if (verificationMode) {
     const result = await verifyPhase0Persistence()
     const resultPath = resolve(userData, 'phase0-validation', 'result.json')
@@ -99,12 +101,12 @@ app.whenReady().then(async () => {
     app.quit()
     return
   }
-  const databasePath = resolve(userData, 'store-inventory.sqlite')
-  await recoverInterruptedRestore(userData, databasePath)
-  await cleanupRestoreCandidates(userData)
+  const databasePath = resolve(dataDirectory, 'store-inventory.sqlite')
+  await recoverInterruptedRestore(dataDirectory, databasePath)
+  await cleanupRestoreCandidates(dataDirectory)
   appDb = openStoreDatabase(databasePath)
   auth = new AuthService(appDb)
-  const maintenance = new MaintenanceService(appDb, auth, userData, databasePath)
+  const maintenance = new MaintenanceService(appDb, auth, dataDirectory, databasePath)
   const productImages = new ProductImagesService(appDb, auth)
   registerIpc(auth, new CatalogService(appDb, auth, Date.now, productImages), new InventoryService(appDb, auth), () => mainWindow?.webContents ?? null, isAllowedAppUrl, maintenance, productImages, () => mainWindow, () => {
     dbClosedForRestore = true
