@@ -10,7 +10,7 @@
   "description": "店舗向け商品在庫管理デスクトップアプリ",
   "main": "out/main/index.js",
   "scripts": {
-    "postinstall": "node -e \"require('electron')\" && electron-builder install-app-deps",
+    "postinstall": "node -e \"require('electron')\"",
     "dev": "electron-vite dev",
     "dev:renderer": "vite --config vite.renderer.config.mts",
     "build": "electron-vite build",

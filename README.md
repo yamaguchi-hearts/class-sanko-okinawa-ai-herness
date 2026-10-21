@@ -20,7 +20,7 @@ Plan、設計書、プロンプトは同じ案件の `<ID>-<slug>` で対応づ�
 
 アプリ骨格は TypeScript、React、Electron、electron-vite で構成し、DBと認証ハッシュの検証はMainプロセス内に限定しています。Rendererへ業務DB APIや認証回避口は公開していません。開発・検証コマンド:
 
-固定バージョンはNode.js 24.19.0/pnpm 12.14.0です。WindowsではPython 3とVisual Studio 2022の「Desktop development with C++」ツールチェーンを用意し、x64 Native Tools Command Promptから `pnpm install --frozen-lockfile` を実行してください。postinstallでbetter-sqlite3とargon2をElectron ABIへ再ビルドします。
+固定バージョンはNode.js 24.19.0/pnpm 12.14.0です。Windows x64では `pnpm install --frozen-lockfile` で依存パッケージとElectron本体を取得し、`pnpm run dev` で起動できます。better-sqlite3とargon2はnpmパッケージに含まれるNode-API対応の事前ビルド済みバイナリを使うため、Python 3やVisual Studio C++ツールチェーンは不要です。初回インストールにはnpmレジストリとElectron配布元へのネットワーク接続が必要です。
 
 ```powershell
 pnpm install --frozen-lockfile
