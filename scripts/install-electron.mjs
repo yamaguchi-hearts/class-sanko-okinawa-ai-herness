@@ -31,7 +31,7 @@ if (process.platform !== 'win32' || process.arch !== 'x64') {
     })
 
     mkdirSync(distDirectory, { recursive: true })
-    await extractZip(archivePath, distDirectory)
+    await extractZip(archivePath, { dir: distDirectory })
     if (!existsSync(executablePath)) throw new Error('展開後にelectron.exeが見つかりません。')
 
     writeFileSync(join(distDirectory, 'version'), `v${version}`)
