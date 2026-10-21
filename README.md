@@ -13,4 +13,4 @@ pnpm run dev
 
 初回起動時に管理者アカウントを登録します。次回以降は登録したログインIDとパスワードでログインします。
 
-開発中のデータベースはリポジトリ直下の `store-inventory.sqlite` に作成されます。配布版では `%APPDATA%\沖縄店舗在庫管理\store-inventory.sqlite` に保存されます。
+開発中のデータベースはリポジトリ直下の `store-inventory.sqlite` に作成されます。Electronでビルドした配布版では `%APPDATA%\沖縄店舗在庫管理\store-inventory.sqlite` に保存されます。
